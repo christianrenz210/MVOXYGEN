@@ -40,9 +40,8 @@ const adminNavItems: NavItem[] = [
     },
     {
         title: 'Reports',
-        url: '#',
+        url: '/reports',
         icon: BarChart3,
-        disabled: true,
     },
     {
         title: 'Settings',
@@ -80,6 +79,24 @@ const userNavItems: NavItem[] = [
     }
 ];
 
+const supplierNavItems: NavItem[] = [
+    {
+        title: 'Dashboard',
+        url: '/supplier/dashboard',
+        icon: Home,
+    },
+    {
+        title: 'Orders',
+        url: '/supplier/dashboard',
+        icon: Package,
+    },
+    {
+        title: 'Settings',
+        url: '/user/settings',
+        icon: Settings,
+    }
+];
+
 const footerNavItems: NavItem[] = [
     // Repository and documentation items removed
 ];
@@ -87,10 +104,11 @@ const footerNavItems: NavItem[] = [
 export function AppSidebar() {
     const { url } = usePage().props;
     const isUserPage = typeof url === 'string' && url.includes('/user');
+    const isSupplierPage = typeof url === 'string' && url.includes('/supplier');
     
     // Choose navigation items based on current page
-    const navItems = isUserPage ? userNavItems : adminNavItems;
-    const logoHref = isUserPage ? '/user/dashboard' : '/dashboard';
+    const navItems = isSupplierPage ? supplierNavItems : (isUserPage ? userNavItems : adminNavItems);
+    const logoHref = isSupplierPage ? '/supplier/dashboard' : (isUserPage ? '/user/dashboard' : '/dashboard');
 
     return (
         <Sidebar collapsible="icon" variant="inset">

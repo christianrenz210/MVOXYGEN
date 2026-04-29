@@ -1,28 +1,42 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Package, Calendar, MapPin, Phone, ArrowLeft } from 'lucide-react';
+import { Package, Calendar, MapPin, Phone, ArrowLeft, CheckCircle } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
-import { useState } from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useState, useEffect } from 'react';
 
 interface Props {
     breadcrumbs?: BreadcrumbItem[];
     approved_rental_requests?: string[];
-    tankTypes?: string[];
+    tankTypes?: { type: string; price: number; quantity: number; image?: string | null }[];
+    flash?: {
+        success?: string;
+        error?: string;
+    };
 }
 
-export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard', href: '/user/dashboard' }], approved_rental_requests = [], tankTypes = [] }: Props) {
+export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard', href: '/user/dashboard' }], approved_rental_requests = [], tankTypes = [], flash }: Props) {
     const [formData, setFormData] = useState({
         request_type: 'rental',
-        tank_type: '',
+        tank_types: [''],
         purpose: '',
         purpose_other: '',
         contact_number: '',
         address: '',
-        pickup_type: 'delivery'
+        pickup_type: 'delivery',
+        priority: 'normal'
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+    // Show success modal if there's a success message from backend
+    useEffect(() => {
+        if (flash?.success) {
+            setShowSuccessModal(true);
+        }
+    }, [flash]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -36,12 +50,27 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
         // Combine purpose and purpose_other if "Others" is selected
         submitData.purpose = submitData.purpose === 'Others' ? submitData.purpose_other : submitData.purpose;
 
+        // Convert tank_types array to comma-separated string for submission
+        submitData.tank_type = submitData.tank_types.filter((t: string) => t !== '').join(', ');
+        delete submitData.tank_types;
+
         router.post('/user/rentals', submitData, {
             onError: (errors) => {
                 setErrors(errors as Record<string, string>);
             },
             onSuccess: () => {
-                router.visit('/user/dashboard');
+                setShowSuccessModal(true);
+                // Reset form after successful submission
+                setFormData({
+                    request_type: 'rental',
+                    tank_types: [''],
+                    purpose: '',
+                    purpose_other: '',
+                    contact_number: '',
+                    address: '',
+                    pickup_type: 'delivery',
+                    priority: 'normal'
+                });
             }
         });
     };
@@ -52,18 +81,35 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
             setErrors(prev => ({ ...prev, [field]: '' }));
         }
 
-        // Clear tank type when switching request type
+        // Clear tank types when switching request type
         if (field === 'request_type') {
-            setFormData(prev => ({ ...prev, tank_type: '' }));
+            setFormData(prev => ({ ...prev, tank_types: [''] }));
         }
+    };
 
-        // Auto-fill purpose when tank type changes
-        if (field === 'tank_type') {
+    const handleTankTypeChange = (index: number, value: string) => {
+        const newTankTypes = [...formData.tank_types];
+        newTankTypes[index] = value;
+        setFormData(prev => ({ ...prev, tank_types: newTankTypes }));
+
+        // Auto-fill purpose when tank type changes (only for the first tank)
+        if (index === 0) {
             setFormData(prev => ({
                 ...prev,
-                purpose: getAutoPurpose(value as string),
+                purpose: getAutoPurpose(value),
                 purpose_other: ''
             }));
+        }
+    };
+
+    const addTank = () => {
+        setFormData(prev => ({ ...prev, tank_types: [...prev.tank_types, ''] }));
+    };
+
+    const removeTank = (index: number) => {
+        if (formData.tank_types.length > 1) {
+            const newTankTypes = formData.tank_types.filter((_, i) => i !== index);
+            setFormData(prev => ({ ...prev, tank_types: newTankTypes }));
         }
     };
 
@@ -81,8 +127,15 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
 
     // Filter tank types based on request type
     const availableTankTypes = formData.request_type === 'refill'
-        ? tankTypes.filter(type => approved_rental_requests.includes(type))
+        ? tankTypes.filter(tank => approved_rental_requests.includes(tank.type))
         : tankTypes;
+
+    // Calculate total price
+    const totalPrice = formData.tank_types.reduce((sum, tankType) => {
+        if (!tankType) return sum;
+        const tank = availableTankTypes.find(t => t.type === tankType);
+        return sum + (tank ? tank.price : 0);
+    }, 0);
 
     const getAutoPurpose = (tankType: string): string => {
         const lowerTankType = tankType.toLowerCase();
@@ -143,7 +196,7 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                                 }`}
                                 required
                             >
-                                <option value="rental">New Rental</option>
+                                <option value="rental">Rent</option>
                                 <option value="refill">Refill</option>
                             </select>
                             {errors.request_type && (
@@ -151,28 +204,125 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                             )}
                         </div>
 
-                        {/* Tank Type */}
+                        {/* Priority */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Tank Type *
+                                Priority Level *
                             </label>
                             <select
-                                value={formData.tank_type}
-                                onChange={(e) => handleChange('tank_type', e.target.value)}
+                                value={formData.priority}
+                                onChange={(e) => handleChange('priority', e.target.value)}
                                 className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                    errors.tank_type ? 'border-red-500' : 'border-gray-300'
+                                    errors.priority ? 'border-red-500' : 'border-gray-300'
                                 }`}
                                 required
                             >
-                                <option value="">Select tank type</option>
-                                {availableTankTypes.map(type => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
+                                <option value="low">Low</option>
+                                <option value="normal">Normal</option>
+                                <option value="high">High</option>
+                                <option value="urgent">Urgent</option>
                             </select>
-                            {errors.tank_type && (
-                                <p className="mt-1 text-sm text-red-600">{errors.tank_type}</p>
+                            {errors.priority && (
+                                <p className="mt-1 text-sm text-red-600">{errors.priority}</p>
                             )}
                         </div>
+
+                        {/* Tank Type */}
+                        <div>
+                            <div className="flex items-center justify-between mb-3">
+                                <label className="block text-sm font-medium text-gray-700">
+                                    Tank Type *
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={addTank}
+                                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add Another Tank
+                                </button>
+                            </div>
+
+                            {/* Multiple Tank Selections */}
+                            <div className="space-y-6">
+                                {formData.tank_types.map((selectedTank, index) => (
+                                    <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <span className="text-sm font-medium text-gray-700">Tank #{index + 1}</span>
+                                            {formData.tank_types.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTank(index)}
+                                                    className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                    Remove
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                            {availableTankTypes.map(tank => (
+                                                <div
+                                                    key={tank.type}
+                                                    onClick={() => handleTankTypeChange(index, tank.type)}
+                                                    className={`relative cursor-pointer rounded-lg border-2 transition-all ${
+                                                        selectedTank === tank.type
+                                                            ? 'border-blue-500 bg-blue-50'
+                                                            : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50 bg-white'
+                                                    }`}
+                                                >
+                                                    <div className="p-4">
+                                                        {tank.image ? (
+                                                            <div className="w-full h-32 bg-gray-100 rounded-md mb-3 overflow-hidden flex items-center justify-center">
+                                                                <img
+                                                                    src={tank.image}
+                                                                    alt={tank.type}
+                                                                    className="w-full h-full object-contain"
+                                                                />
+                                                            </div>
+                                                        ) : (
+                                                            <div className="w-full h-32 bg-gray-200 rounded-md mb-3 flex items-center justify-center">
+                                                                <Package className="w-10 h-10 text-gray-400" />
+                                                            </div>
+                                                        )}
+                                                        <h3 className="font-semibold text-gray-800 mb-1 text-sm">{tank.type}</h3>
+                                                        <p className="text-sm text-gray-600 mb-1">₱{tank.price.toFixed(2)}</p>
+                                                        <p className="text-xs text-gray-500">Stock: {tank.quantity}</p>
+                                                    </div>
+                                                    {selectedTank === tank.type && (
+                                                        <div className="absolute top-2 right-2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        {selectedTank === '' && (
+                                            <p className="text-sm text-gray-500 mt-2">Please select a tank type</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            {errors.tank_type && (
+                                <p className="mt-2 text-sm text-red-600">{errors.tank_type}</p>
+                            )}
+                        </div>
+
+                        {/* Total Price */}
+                        {totalPrice > 0 && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-lg font-medium text-gray-700">Total Price:</span>
+                                    <span className="text-2xl font-bold text-blue-600">₱{totalPrice.toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Pickup Type */}
                         <div>
@@ -323,6 +473,31 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                         </div>
                     </form>
                 </div>
+
+                {/* Success Modal */}
+                <Dialog open={showSuccessModal} onOpenChange={setShowSuccessModal}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <div className="flex flex-col items-center text-center">
+                                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                                    <CheckCircle className="w-8 h-8 text-green-600" />
+                                </div>
+                                <DialogTitle className="text-2xl">Request Submitted!</DialogTitle>
+                                <DialogDescription className="text-base mt-2">
+                                    Your rental request has been submitted successfully. We will review your request and get back to you soon.
+                                </DialogDescription>
+                            </div>
+                        </DialogHeader>
+                        <div className="flex justify-center mt-6">
+                            <button
+                                onClick={() => setShowSuccessModal(false)}
+                                className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </DialogContent>
+                </Dialog>
             </div>
         </AppLayout>
     );

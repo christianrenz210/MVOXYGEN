@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 
 export function NavMain({ items = [] }: { items: NavItem[] }) {
     const page = usePage();
+    const currentUrl = page.url?.split('?')[0] || '';
     
     return (
         <SidebarGroup className="px-2 py-0">
@@ -22,16 +23,13 @@ export function NavMain({ items = [] }: { items: NavItem[] }) {
                             </SidebarMenuButton>
                         ) : (
                             <SidebarMenuButton 
-                                asChild 
-                                isActive={item.url === page.url}
+                                asChild
+                                isActive={currentUrl === item.url}
                             >
-                                <Link 
-                                    href={item.url} 
-                                    onClick={() => console.log(`Link clicked: ${item.title} -> ${item.url}`)}
-                                >
-                                    <item.icon className="w-4 h-4" />
+                                <a href={item.url} className="flex items-center gap-2 no-underline text-inherit">
+                                    {item.icon && <item.icon className="w-4 h-4" />}
                                     <span>{item.title}</span>
-                                </Link>
+                                </a>
                             </SidebarMenuButton>
                         )}
                     </SidebarMenuItem>

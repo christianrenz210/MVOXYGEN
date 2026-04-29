@@ -3,48 +3,25 @@ import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
-import { LayoutGrid, Users, Package, RefreshCw, FileText, BarChart3, Settings, ShoppingCart, TrendingUp, AlertCircle, Calendar, DollarSign } from 'lucide-react';
+import { Link, usePage } from '@inertiajs/react';
+import { Home, Package, Settings, Building2, Truck, FileText } from 'lucide-react';
 import AppLogo from './app-logo';
 
-const adminNavItems: NavItem[] = [
+const supplierNavItems: NavItem[] = [
     {
         title: 'Dashboard',
-        url: '/dashboard',
-        icon: LayoutGrid,
+        url: '/supplier/dashboard',
+        icon: Home,
     },
     {
-        title: 'Customers',
-        url: '/customer',
-        icon: Users,
-    },
-    {
-        title: 'Rentals',
-        url: '/rentals',
+        title: 'Orders',
+        url: '/supplier/orders',
         icon: Package,
     },
     {
-        title: 'Refills',
-        url: '#',
-        icon: RefreshCw,
-        disabled: true,
-    },
-    {
-        title: 'Inventory',
-        url: '#',
-        icon: FileText,
-        disabled: true,
-    },
-    {
-        title: 'Reports',
-        url: '/reports',
-        icon: BarChart3,
-    },
-    {
         title: 'Settings',
-        url: '#',
+        url: '/user/settings',
         icon: Settings,
-        disabled: true,
     }
 ];
 
@@ -52,14 +29,16 @@ const footerNavItems: NavItem[] = [
     // Repository and documentation items removed
 ];
 
-export function AdminSidebar() {
+export function SupplierSidebar() {
+    const { url } = usePage().props;
+
     return (
         <Sidebar collapsible="icon" variant="inset">
             <SidebarHeader>
                 <SidebarMenu>
                     <SidebarMenuItem>
                         <SidebarMenuButton size="lg" asChild>
-                            <Link href="/dashboard" prefetch>
+                            <Link href="/supplier/dashboard" prefetch>
                                 <AppLogo />
                             </Link>
                         </SidebarMenuButton>
@@ -68,7 +47,7 @@ export function AdminSidebar() {
             </SidebarHeader>
 
             <SidebarContent>
-                <NavMain items={adminNavItems} />
+                <NavMain items={supplierNavItems} />
             </SidebarContent>
 
             <SidebarFooter>

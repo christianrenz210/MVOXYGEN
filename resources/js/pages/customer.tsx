@@ -6,7 +6,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Phone, MapPin, Eye, Edit, Archive, RotateCcw, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Search, Phone, MapPin, Eye, Edit, Archive, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import AddCustomerDialog from '@/components/add-customer-dialog';
 import EditCustomerDialog from '@/components/edit-customer-dialog';
@@ -191,34 +192,22 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
                             <CardTitle>Customer Directory</CardTitle>
                             <div className="flex gap-2">
-                                <Button
-                                    variant={statusFilter === 'all' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setStatusFilter('all')}
-                                >
-                                    All
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'active' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setStatusFilter('active')}
-                                >
-                                    Active
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'inactive' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setStatusFilter('inactive')}
-                                >
-                                    Inactive
-                                </Button>
-                                <Button
-                                    variant={statusFilter === 'archived' ? 'default' : 'outline'}
-                                    size="sm"
-                                    onClick={() => setStatusFilter('archived')}
-                                >
-                                    Archived
-                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className="gap-2">
+                                            <Filter className="h-4 w-4" />
+                                            {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                        <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive' | 'archived')}>
+                                            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                                            <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
+                                            <DropdownMenuRadioItem value="inactive">Inactive</DropdownMenuRadioItem>
+                                            <DropdownMenuRadioItem value="archived">Archived</DropdownMenuRadioItem>
+                                        </DropdownMenuRadioGroup>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             </div>
                         </div>
                         <div className="relative w-full sm:w-64 mt-4">

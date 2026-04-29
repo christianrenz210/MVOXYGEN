@@ -30,16 +30,18 @@ export function Notifications() {
         try {
             setLoading(true);
             const response = await fetch('/notifications', {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json',
                     'Content-Type': 'application/json',
                 },
+                credentials: 'same-origin',
             });
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
             setNotifications(data.notifications || []);
         } catch (error) {
@@ -74,28 +76,22 @@ export function Notifications() {
 
     const handleNotificationClick = async (notification: Notification) => {
         // Update local state immediately for better UX
-        setNotifications(prev => 
+        setNotifications(prev =>
             prev.map(n => n.id === notification.id ? { ...n, read: true } : n)
         );
-        
+
         try {
             // Mark as read in backend
-            const response = await fetch(`/notifications/${notification.id}/read`, {
+            await fetch(`/notifications/${notification.id}/read`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'Accept': 'application/json',
                 },
+                credentials: 'same-origin',
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
-            // Close dropdown after successful API call
-            setIsOpen(false);
-            
+
             // Navigate if link exists
             if (notification.link) {
                 router.visit(notification.link);
@@ -103,7 +99,7 @@ export function Notifications() {
         } catch (error) {
             console.error('Failed to mark notification as read:', error);
             // Revert state if failed
-            setNotifications(prev => 
+            setNotifications(prev =>
                 prev.map(n => n.id === notification.id ? { ...n, read: false } : n)
             );
         }
@@ -111,19 +107,16 @@ export function Notifications() {
     
     const handleMarkAllAsRead = async () => {
         try {
-            const response = await fetch('/notifications/read-all', {
+            await fetch('/notifications/read-all', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '',
                     'Accept': 'application/json',
                 },
+                credentials: 'same-origin',
             });
-            
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            
+
             // Update local state
             setNotifications(prev => prev.map(n => ({ ...n, read: true })));
         } catch (error) {

@@ -307,7 +307,7 @@ export default function Contact() {
                                 <h3 className="text-lg font-medium text-[#1b1b18] dark:text-[#EDEDEC]">Find us on the map</h3>
                             </div>
                             <div className="relative h-[300px]">
-                                <iframe 
+                                {/* <iframe 
                                     src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3847.5302633465744!2d121.04813007011415!3d15.347742237171778!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33972300634ae665%3A0x1fe9ddec2dc8a12a!2sLily%E2%80%99s%20Merchandise!5e0!3m2!1sen!2sph!4v1775918142505!5m2!1sen!2sph" 
                                     width="600" 
                                     height="450" 
@@ -315,7 +315,7 @@ export default function Contact() {
                                     allowFullScreen 
                                     loading="lazy" 
                                     referrerPolicy="no-referrer-when-downgrade"
-                                ></iframe>
+                                ></iframe> */}
                             </div>
                         </div>
                     </div>

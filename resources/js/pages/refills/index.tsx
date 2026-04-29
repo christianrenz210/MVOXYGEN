@@ -35,6 +35,10 @@ interface Props {
 }
 
 export default function RefillsIndex({ rentalRequests }: Props) {
+    const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'all'>('all');
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    
     const allTankTypes = [
         { name: 'Argon Small', price: 1100 },
         { name: 'Argon Big', price: 2200 },
@@ -90,6 +94,25 @@ export default function RefillsIndex({ rentalRequests }: Props) {
     };
 
     const filteredTankTypes = getFilteredTankTypes();
+    
+    // Filter requests based on active tab
+    const filteredRequests = activeTab === 'all' 
+        ? rentalRequests 
+        : rentalRequests.filter(r => r.status === activeTab);
+    
+    // Pagination logic
+    const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage);
+    
+    const handleTabChange = (tab: 'pending' | 'approved' | 'rejected' | 'all') => {
+        setActiveTab(tab);
+        setCurrentPage(1);
+    };
+    
+    const getStatsCount = (status: 'pending' | 'approved' | 'rejected') => {
+        return rentalRequests.filter(r => r.status === status).length;
+    };
 
     const handleSubmitRefill = (e: React.FormEvent) => {
         e.preventDefault();
@@ -161,15 +184,16 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                     </button>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Stats Cards - Clickable */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+                    <div 
+                        onClick={() => handleTabChange('pending')}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'pending' ? 'ring-2 ring-yellow-400' : ''}`}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Pending</p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {rentalRequests.filter(r => r.status === 'pending').length}
-                                </p>
+                                <p className="text-2xl font-bold text-gray-800">{getStatsCount('pending')}</p>
                             </div>
                             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
                                 <Calendar className="w-6 h-6 text-yellow-600" />
@@ -177,13 +201,14 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                    <div 
+                        onClick={() => handleTabChange('approved')}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'approved' ? 'ring-2 ring-green-400' : ''}`}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Approved</p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {rentalRequests.filter(r => r.status === 'approved').length}
-                                </p>
+                                <p className="text-2xl font-bold text-gray-800">{getStatsCount('approved')}</p>
                             </div>
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
                                 <CheckCircle className="w-6 h-6 text-green-600" />
@@ -191,13 +216,14 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                    <div 
+                        onClick={() => handleTabChange('rejected')}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'rejected' ? 'ring-2 ring-red-400' : ''}`}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Rejected</p>
-                                <p className="text-2xl font-bold text-gray-800">
-                                    {rentalRequests.filter(r => r.status === 'rejected').length}
-                                </p>
+                                <p className="text-2xl font-bold text-gray-800">{getStatsCount('rejected')}</p>
                             </div>
                             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
                                 <AlertCircle className="w-6 h-6 text-red-600" />
@@ -205,7 +231,10 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                    <div 
+                        onClick={() => handleTabChange('all')}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'all' ? 'ring-2 ring-blue-400' : ''}`}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Total Requests</p>
@@ -220,7 +249,16 @@ export default function RefillsIndex({ rentalRequests }: Props) {
 
                 {/* Refill Requests Table */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">All Refill Requests</h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-800">
+                            {activeTab === 'all' ? 'All Refill Requests' : 
+                             activeTab === 'pending' ? 'Pending Requests' :
+                             activeTab === 'approved' ? 'Approved Requests' : 'Rejected Requests'}
+                        </h2>
+                        <span className="text-sm text-gray-500">
+                            Showing {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredRequests.length)} of {filteredRequests.length}
+                        </span>
+                    </div>
                     
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -235,7 +273,7 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {rentalRequests.map((request) => (
+                                {paginatedRequests.map((request) => (
                                     <tr key={request.id} className="border-b border-gray-100 hover:bg-gray-50">
                                         <td className="py-3 px-4">
                                             <div>
@@ -290,29 +328,29 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                             </tbody>
                         </table>
 
-                        {rentalRequests.length === 0 && (
+                        {filteredRequests.length === 0 && (
                             <div className="text-center py-8 text-gray-500">
                                 <RefreshCw className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                                <p>No refill requests found.</p>
+                                <p>No {activeTab === 'all' ? '' : activeTab} refill requests found.</p>
                             </div>
                         )}
 
                         {/* Pagination */}
-                        {rentalRequests.length > 0 && (
+                        {totalPages > 1 && (
                             <div className="flex justify-between items-center mt-4 px-4">
                                 <button
-                                    onClick={() => router.get(window.location.href, { page: Math.max(1, (usePage().props.page as number || 1) - 1) })}
-                                    disabled={(usePage().props.page as number || 1) === 1}
+                                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1}
                                     className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Previous
                                 </button>
                                 <span className="text-sm text-gray-600">
-                                    Page {usePage().props.page as number || 1}
+                                    Page {currentPage} of {totalPages}
                                 </span>
                                 <button
-                                    onClick={() => router.get(window.location.href, { page: (usePage().props.page as number || 1) + 1 })}
-                                    disabled={rentalRequests.length < 10}
+                                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                                    disabled={currentPage === totalPages}
                                     className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Next

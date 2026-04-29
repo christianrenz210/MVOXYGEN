@@ -50,4 +50,9 @@ class Rental extends Model
     {
         return $this->belongsTo(RentalRequest::class);
     }
+
+    public function tank(): BelongsTo
+    {
+        return $this->belongsTo(Tank::class, 'tank_id', 'tank_id');
+    }
 }

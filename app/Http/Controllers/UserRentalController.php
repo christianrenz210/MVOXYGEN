@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Services\GeolocationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Inertia\Inertia;
 
@@ -67,11 +68,31 @@ class UserRentalController extends Controller
                 ->toArray();
         }
 
-        // Get available tank types from inventory
+        // Get available tank types from inventory with prices, quantity, and images
         $tankTypes = \App\Models\Tank::where('status', 'available')
             ->where('quantity', '>', 0)
-            ->pluck('tank_type')
-            ->unique()
+            ->get(['tank_type', 'price', 'quantity', 'image'])
+            ->map(function ($tank) {
+                // Convert image path to full URL if it exists
+                $imageUrl = null;
+                if ($tank->image) {
+                    if (str_starts_with($tank->image, 'http')) {
+                        $imageUrl = $tank->image;
+                    } elseif (str_starts_with($tank->image, '/storage/')) {
+                        $imageUrl = asset($tank->image);
+                    } else {
+                        $imageUrl = Storage::url($tank->image);
+                    }
+                }
+
+                return [
+                    'type' => $tank->tank_type,
+                    'price' => (float) $tank->price,
+                    'quantity' => $tank->quantity,
+                    'image' => $imageUrl
+                ];
+            })
+            ->unique('type')
             ->values();
 
         return Inertia::render('user/rentals/create', [
@@ -96,7 +117,8 @@ class UserRentalController extends Controller
             'purpose' => 'required|string|max:1000',
             'contact_number' => 'required|string|max:20',
             'address' => 'required_if:pickup_type,delivery|string|max:500',
-            'pickup_type' => 'required|in:delivery,pickup'
+            'pickup_type' => 'required|in:delivery,pickup',
+            'priority' => 'required|in:low,normal,high,urgent'
         ]);
 
         if ($validator->fails()) {
@@ -126,12 +148,11 @@ class UserRentalController extends Controller
             'product_id' => null,
             'tank_type' => $request->tank_type,
             'quantity' => 1, // Default quantity since we removed it from form
-            'start_date' => now()->addDay()->format('Y-m-d'), // Default to tomorrow
-            'end_date' => now()->addDays(7)->format('Y-m-d'), // Default to 7 days
             'purpose' => $request->purpose,
             'contact_number' => $request->contact_number,
             'address' => $request->address ?? 'Pickup at Store',
             'status' => 'pending',
+            'priority' => $request->priority ?? 'normal',
             'admin_notes' => null,
             'rejected_reason' => null
         ];
@@ -177,19 +198,33 @@ class UserRentalController extends Controller
             'type' => 'info',
         ]);
 
-        return redirect()->route('user.dashboard')
+        // Create notification for admin about new request
+        $adminUsers = \App\Models\User::where('role', 'admin')->get();
+        foreach ($adminUsers as $admin) {
+            \App\Models\Notification::create([
+                'user_id' => $admin->id,
+                'type' => 'info',
+                'title' => 'New Rental Request',
+                'message' => "New {$request->request_type} request for {$request->tank_type} from {$customer->name}",
+                'link' => "/rentals/{$rentalRequest->id}",
+                'read' => false,
+            ]);
+        }
+
+        return redirect()->back()
             ->with('success', 'Rental request submitted successfully!');
     }
 
     public function history()
     {
         $user = Auth::user();
-        
+
         // Find customer record for this user
         $customer = Customer::where('name', $user->name)->first();
-        
+
         if ($customer) {
             $rentalRequests = RentalRequest::where('customer_id', $customer->id)
+                ->with(['assignedTank', 'maintenance'])
                 ->orderBy('created_at', 'desc')
                 ->get();
         } else {
@@ -218,6 +253,25 @@ class UserRentalController extends Controller
         ]);
     }
 
+    public function clearHistory()
+    {
+        $user = Auth::user();
+
+        // Find customer record for this user
+        $customer = Customer::where('name', $user->name)->first();
+
+        if ($customer) {
+            // Delete only completed, rejected, and cancelled requests
+            // Keep pending and approved requests
+            RentalRequest::where('customer_id', $customer->id)
+                ->whereIn('status', ['completed', 'rejected', 'cancelled'])
+                ->delete();
+        }
+
+        return redirect()->route('user.history')
+            ->with('success', 'History cleared successfully!');
+    }
+
     public function settings()
     {
         $user = Auth::user()->fresh();
@@ -242,7 +296,7 @@ class UserRentalController extends Controller
             'name' => 'required|string|max:255',
             'contact_number' => 'nullable|string|max:20',
             'address' => 'nullable|string|max:500',
-            'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'profile_image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
         ]);
 
         $updateData = [
@@ -253,10 +307,29 @@ class UserRentalController extends Controller
 
         // Handle profile image upload
         if ($request->hasFile('profile_image')) {
+            \Log::info('Profile image upload attempt for user: ' . $user->id);
+
+            // Ensure storage directory exists
+            if (!Storage::disk('public')->exists('profile-images')) {
+                Storage::disk('public')->makeDirectory('profile-images');
+                \Log::info('Created profile-images directory');
+            }
+
+            // Delete old profile image if exists
+            if ($user->profile_image) {
+                $oldPath = str_replace('/storage/', '', $user->profile_image);
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
+                    \Log::info('Deleted old profile image: ' . $oldPath);
+                }
+            }
+
             $file = $request->file('profile_image');
             $filename = time() . '_' . $file->getClientOriginalName();
             $path = $file->storeAs('profile-images', $filename, 'public');
             $updateData['profile_image'] = '/storage/' . $path;
+
+            \Log::info('Profile image uploaded successfully: ' . $updateData['profile_image']);
         }
 
         $user->update($updateData);
@@ -399,10 +472,10 @@ class UserRentalController extends Controller
     public function edit(RentalRequest $rentalRequest)
     {
         $user = Auth::user();
-        
+
         // Find customer record for this user
         $customer = Customer::where('name', $user->name)->first();
-        
+
         // Ensure user can only edit their own requests
         if (!$customer || $rentalRequest->customer_id !== $customer->id) {
             abort(403);
@@ -412,6 +485,24 @@ class UserRentalController extends Controller
         if ($rentalRequest->status !== 'pending') {
             return redirect()->route('user.rentals.show', $rentalRequest)
                 ->with('error', 'You can only edit pending requests.');
+        }
+
+        // Load assigned tank with image
+        $rentalRequest->load('assignedTank');
+
+        // Also load tank by tank_type if assigned_tank is not set
+        if (!$rentalRequest->assignedTank && $rentalRequest->tank_type) {
+            $tank = \App\Models\Tank::where('tank_type', $rentalRequest->tank_type)->first();
+            if ($tank) {
+                $rentalRequest->assigned_tank = $tank;
+            }
+        }
+
+        // Convert image path to full URL if it exists
+        if ($rentalRequest->assigned_tank && $rentalRequest->assigned_tank->image) {
+            if (!str_starts_with($rentalRequest->assigned_tank->image, 'http')) {
+                $rentalRequest->assigned_tank->image = \Storage::url($rentalRequest->assigned_tank->image);
+            }
         }
 
         return Inertia::render('user/rentals/edit', [
@@ -430,10 +521,10 @@ class UserRentalController extends Controller
     public function update(Request $request, RentalRequest $rentalRequest)
     {
         $user = Auth::user();
-        
+
         // Find customer record for this user
         $customer = Customer::where('name', $user->name)->first();
-        
+
         // Ensure user can only update their own requests
         if (!$customer || $rentalRequest->customer_id !== $customer->id) {
             abort(403);

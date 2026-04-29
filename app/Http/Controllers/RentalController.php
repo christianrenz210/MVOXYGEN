@@ -29,9 +29,37 @@ class RentalController extends Controller
 
     public function approve(RentalRequest $rentalRequest, Request $request)
     {
+        $rentalRequest->load('product');
+        
         \Log::info('Approving rental request: ' . $rentalRequest->id . ' with status: ' . $rentalRequest->status);
 
-        $rentalRequest->update(['status' => 'approved']);
+        // Find an available tank of the requested type
+        $tank = \App\Models\Tank::where('tank_type', $rentalRequest->tank_type)
+            ->where('status', 'available')
+            ->where('quantity', '>', 0)
+            ->first();
+
+        if ($tank) {
+            // Assign the tank ID to the rental request
+            $rentalRequest->update([
+                'status' => 'approved',
+                'assigned_tank_id' => $tank->tank_id
+            ]);
+
+            // Reduce tank quantity
+            $tank->quantity -= 1;
+            if ($tank->quantity === 0) {
+                $tank->status = 'rented_out';
+            }
+            $tank->save();
+
+            \Log::info('Assigned tank ID: ' . $tank->tank_id . ' to rental request');
+        } else {
+            // Approve without assigning a tank ID if no tanks available
+            $rentalRequest->update(['status' => 'approved']);
+            \Log::info('No available tanks found, approved without tank ID assignment');
+        }
+
         \Log::info('Updated rental request status to approved');
 
         // Log activity
@@ -45,15 +73,30 @@ class RentalController extends Controller
             'type' => 'success',
         ]);
 
+        // Create notification for customer
+        $customerUser = \App\Models\User::where('name', $rentalRequest->customer->name)->first();
+        if ($customerUser) {
+            \App\Models\Notification::create([
+                'user_id' => $customerUser->id,
+                'type' => 'success',
+                'title' => 'Rental Approved',
+                'message' => "Your rental request for {$rentalRequest->tank_type} has been approved",
+                'link' => "/user/rentals/{$rentalRequest->id}",
+                'read' => false,
+            ]);
+        }
+
         // Create rental record with deposit information
         $rentalData = [
             'rental_request_id' => $rentalRequest->id,
             'customer_id' => $rentalRequest->customer_id,
             'product_id' => $rentalRequest->product_id,
+            'tank_id' => $rentalRequest->assigned_tank_id,
             'start_date' => $rentalRequest->start_date,
             'end_date' => $rentalRequest->end_date,
             'status' => 'active',
             'pickup_date' => now(),
+            'total_amount' => $rentalRequest->product ? $rentalRequest->product->price : 0,
             'deposit_type' => 'Security Deposit',
             'deposit_amount' => 0,
             'deposit_payment_date' => now(),
@@ -129,6 +172,19 @@ class RentalController extends Controller
             'type' => 'error',
         ]);
 
+        // Create notification for customer
+        $customerUser = \App\Models\User::where('name', $rentalRequest->customer->name)->first();
+        if ($customerUser) {
+            \App\Models\Notification::create([
+                'user_id' => $customerUser->id,
+                'type' => 'error',
+                'title' => 'Request Rejected',
+                'message' => "Your {$requestType} request for {$rentalRequest->tank_type} has been rejected",
+                'link' => "/user/rentals/{$rentalRequest->id}",
+                'read' => false,
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Rental request rejected.');
     }
 
@@ -191,6 +247,19 @@ class RentalController extends Controller
             'description' => "Admin {$admin->name} marked rental request for {$rentalRequest->tank_type} from {$rentalRequest->customer->name} as completed",
             'type' => 'success',
         ]);
+
+        // Create notification for customer
+        $customerUser = \App\Models\User::where('name', $rentalRequest->customer->name)->first();
+        if ($customerUser) {
+            \App\Models\Notification::create([
+                'user_id' => $customerUser->id,
+                'type' => 'success',
+                'title' => 'Rental Returned',
+                'message' => "Your rental for {$rentalRequest->tank_type} has been marked as returned",
+                'link' => "/user/rentals/{$rentalRequest->id}",
+                'read' => false,
+            ]);
+        }
 
         // Update corresponding rental record if it exists
         if ($rentalRequest->rental) {

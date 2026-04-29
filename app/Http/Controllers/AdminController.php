@@ -50,6 +50,48 @@ class AdminController extends Controller
     }
 
     /**
+     * Update admin profile image
+     */
+    public function updateProfileImage(Request $request)
+    {
+        $request->validate([
+            'profile_image' => 'required|image|mimes:jpeg,png,jpg,gif|max:10240',
+        ]);
+
+        $user = auth()->user();
+
+        \Log::info('Profile image upload attempt for user: ' . $user->id);
+
+        if ($request->hasFile('profile_image')) {
+            // Ensure storage directory exists
+            if (!Storage::disk('public')->exists('profile-images')) {
+                Storage::disk('public')->makeDirectory('profile-images');
+                \Log::info('Created profile-images directory');
+            }
+
+            // Delete old profile image if exists
+            if ($user->profile_image) {
+                $oldPath = str_replace('/storage/', '', $user->profile_image);
+                if (Storage::disk('public')->exists($oldPath)) {
+                    Storage::disk('public')->delete($oldPath);
+                    \Log::info('Deleted old profile image: ' . $oldPath);
+                }
+            }
+
+            // Store new profile image
+            $file = $request->file('profile_image');
+            $filename = time() . '_' . $file->getClientOriginalName();
+            $path = $file->storeAs('profile-images', $filename, 'public');
+            $fullPath = '/storage/' . $path;
+            $user->update(['profile_image' => $fullPath]);
+
+            \Log::info('Profile image uploaded successfully: ' . $fullPath);
+        }
+
+        return redirect()->back()->with('success', 'Profile image updated successfully!');
+    }
+
+    /**
      * Create database backup and download
      */
     public function backup(Request $request)

@@ -11,5 +11,6 @@ class Maintenance extends Model
         'quantity',
         'condition',
         'valve',
+        'status',
     ];
 }

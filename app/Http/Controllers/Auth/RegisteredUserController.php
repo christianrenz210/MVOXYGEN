@@ -49,7 +49,7 @@ class RegisteredUserController extends Controller
         event(new Registered($user));
 
         // Send OTP for email verification
-        $otpController = new OtpController();
+        $otpController = app()->make(OtpController::class);
         $otpRequest = new Request(['user_id' => $user->id]);
         $otpResponse = $otpController->send($otpRequest);
 

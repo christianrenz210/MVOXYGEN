@@ -7,6 +7,7 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 interface RentalRequest {
     id: number;
     tank_type: string;
+    assigned_tank_id?: string;
     quantity?: number;
     start_date?: string;
     end_date?: string;
@@ -175,6 +176,7 @@ export default function UserRentalIndex({ breadcrumbs = [{ title: 'Dashboard', h
                             <thead>
                                 <tr className="border-b border-gray-200">
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Tank Type</th>
+                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Tank ID</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Type</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Purpose</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
@@ -190,6 +192,13 @@ export default function UserRentalIndex({ breadcrumbs = [{ title: 'Dashboard', h
                                     return (
                                         <tr key={request.id} className="border-b border-gray-100 hover:bg-gray-50">
                                             <td className="py-3 px-4 text-gray-800">{request.tank_type}</td>
+                                            <td className="py-3 px-4">
+                                                {request.assigned_tank_id ? (
+                                                    <span className="text-blue-600 font-medium">{request.assigned_tank_id}</span>
+                                                ) : (
+                                                    <span className="text-gray-400">TBD</span>
+                                                )}
+                                            </td>
                                             <td className="py-3 px-4">
                                                 <span className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded-full">
                                                     {pickupType}

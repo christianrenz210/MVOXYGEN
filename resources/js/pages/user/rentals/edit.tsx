@@ -15,6 +15,15 @@ interface RentalRequest {
     contact_number: string;
     address: string;
     status: string;
+    request_type?: string;
+    assigned_tank?: {
+        tank_id: string;
+        tank_type: string;
+        quantity: number;
+        status: string;
+        last_refilled?: string;
+        image?: string;
+    };
 }
 
 interface PageProps {
@@ -28,11 +37,17 @@ interface PageProps {
             role: string;
         };
     };
+    [key: string]: any;
 }
 
 export default function RentalRequestEdit() {
     const { props } = usePage<PageProps>();
     const { rentalRequest, breadcrumbs } = props;
+
+    // Debug: Check if assigned_tank and image are received
+    console.log('Edit page rentalRequest:', rentalRequest);
+    console.log('Assigned tank:', rentalRequest.assigned_tank);
+    console.log('Assigned tank image:', rentalRequest.assigned_tank?.image);
     
     const [formData, setFormData] = useState({
         request_type: rentalRequest.request_type || 'rental',
@@ -47,7 +62,7 @@ export default function RentalRequestEdit() {
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         router.put(`/user/rentals/${rentalRequest.id}`, formData, {
             onError: (errors) => {
                 setErrors(errors as Record<string, string>);
@@ -124,27 +139,44 @@ export default function RentalRequestEdit() {
                             )}
                         </div>
 
-                        {/* Tank Type */}
+                        {/* Tank Type with Image */}
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Tank Type *
                             </label>
-                            <select
-                                value={formData.tank_type}
-                                onChange={(e) => handleChange('tank_type', e.target.value)}
-                                className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                    errors.tank_type ? 'border-red-500' : 'border-gray-300'
-                                }`}
-                                required
-                            >
-                                <option value="">Select tank type</option>
-                                {tankTypes.map(type => (
-                                    <option key={type} value={type}>{type}</option>
-                                ))}
-                            </select>
-                            {errors.tank_type && (
-                                <p className="mt-1 text-sm text-red-600">{errors.tank_type}</p>
-                            )}
+                            <div className="space-y-3">
+                                <select
+                                    value={formData.tank_type}
+                                    onChange={(e) => handleChange('tank_type', e.target.value)}
+                                    className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                        errors.tank_type ? 'border-red-500' : 'border-gray-300'
+                                    }`}
+                                    required
+                                >
+                                    <option value="">Select tank type</option>
+                                    {tankTypes.map(type => (
+                                        <option key={type} value={type}>{type}</option>
+                                    ))}
+                                </select>
+                                {errors.tank_type && (
+                                    <p className="mt-1 text-sm text-red-600">{errors.tank_type}</p>
+                                )}
+
+                                {/* Display tank image (read-only) */}
+                                {rentalRequest.assigned_tank?.image && (
+                                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                                        <p className="text-sm font-medium text-gray-700 mb-2">Tank Image</p>
+                                        <img
+                                            src={rentalRequest.assigned_tank.image}
+                                            alt={rentalRequest.assigned_tank.tank_type}
+                                            className="w-32 h-32 object-cover rounded-lg border border-gray-200"
+                                            onError={(e) => {
+                                                (e.target as HTMLImageElement).style.display = 'none';
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {/* Pickup Type */}

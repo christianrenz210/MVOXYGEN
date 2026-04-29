@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import InputError from '@/components/input-error';
+import { Breadcrumbs } from '@/components/breadcrumbs';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -31,10 +32,14 @@ export default function SupplierCreate() {
     };
 
     return (
-        <AppLayout breadcrumbs={breadcrumbs}>
+        <AppLayout>
             <Head title="Add Supplier - MV Oxygen Trading" />
-
+            
             <div className="p-6 space-y-6">
+                {/* Breadcrumbs at the bottom */}
+            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                <Breadcrumbs breadcrumbs={breadcrumbs} />
+            </div>
                 <div className="flex items-center gap-4">
                     <Link href={route('suppliers.index')}>
                         <Button variant="outline" size="icon">

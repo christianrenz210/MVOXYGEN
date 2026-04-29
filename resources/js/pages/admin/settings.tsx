@@ -42,6 +42,8 @@ export default function AdminSettings() {
     const [successMessage, setSuccessMessage] = React.useState('');
     const [downloadFile, setDownloadFile] = React.useState('');
     const [restoreFile, setRestoreFile] = React.useState<File | null>(null);
+    const [profileImage, setProfileImage] = React.useState<File | null>(null);
+    const [isUploadingImage, setIsUploadingImage] = React.useState(false);
     const [formData, setFormData] = React.useState({
         name: auth.user.name || '',
         email: auth.user.email || '',
@@ -72,6 +74,30 @@ export default function AdminSettings() {
             onSuccess: () => {
                 console.log('Profile updated successfully');
             },
+        });
+    };
+
+    const handleProfileImageUpload = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!profileImage) {
+            return;
+        }
+
+        setIsUploadingImage(true);
+        const formData = new FormData();
+        formData.append('profile_image', profileImage);
+
+        router.post('/admin/settings/profile-image', formData, {
+            onSuccess: () => {
+                setSuccessMessage('Profile image updated successfully!');
+                setTimeout(() => setSuccessMessage(''), 3000);
+                setProfileImage(null);
+                router.reload();
+            },
+            onError: (errors) => {
+                console.error('Profile image upload failed:', errors);
+            },
+            onFinish: () => setIsUploadingImage(false),
         });
     };
 
@@ -151,6 +177,40 @@ export default function AdminSettings() {
                                 <div>
                                     <p className="text-sm text-gray-600">Admin Profile</p>
                                     <p className="text-xs text-gray-500 mt-1">Manage your admin account information</p>
+                                    <div className="mt-3 flex gap-2">
+                                        <input
+                                            type="file"
+                                            id="profile_image"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setProfileImage(file);
+                                                }
+                                            }}
+                                            className="hidden"
+                                        />
+                                        <label
+                                            htmlFor="profile_image"
+                                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                                        >
+                                            Choose Image
+                                        </label>
+                                        {profileImage && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={handleProfileImageUpload}
+                                                disabled={isUploadingImage}
+                                                className="text-xs"
+                                            >
+                                                {isUploadingImage ? 'Uploading...' : 'Upload'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {profileImage && (
+                                        <p className="text-xs text-gray-500 mt-1">Selected: {profileImage.name}</p>
+                                    )}
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

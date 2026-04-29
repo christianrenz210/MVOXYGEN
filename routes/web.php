@@ -12,6 +12,8 @@ use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\DepositController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\SupplierOrderController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -39,9 +41,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('user/rentals/{rentalRequest}', [UserRentalController::class, 'show'])->name('user.rentals.show');
     Route::get('user/rentals/{rentalRequest}/edit', [UserRentalController::class, 'edit'])->name('user.rentals.edit');
     Route::put('user/rentals/{rentalRequest}', [UserRentalController::class, 'update'])->name('user.rentals.update');
+    Route::post('user/rentals/{rentalRequest}/update-image', [UserRentalController::class, 'updateImage'])->name('user.rentals.update-image');
     Route::post('user/rentals/{rentalRequest}/cancel', [UserRentalController::class, 'cancel'])->name('user.rentals.cancel');
     Route::get('user/rentals/{rentalRequest}/track', [UserRentalController::class, 'track'])->name('user.rentals.track');
     Route::get('user/history', [UserRentalController::class, 'history'])->name('user.history');
+    Route::post('user/history/clear', [UserRentalController::class, 'clearHistory'])->name('user.history.clear');
     Route::get('user/settings', [UserRentalController::class, 'settings'])->name('user.settings');
     Route::post('user/settings/profile', [UserRentalController::class, 'updateProfile'])->name('user.settings.profile');
     Route::post('user/settings/notifications', [UserRentalController::class, 'updateNotifications'])->name('user.settings.notifications');
@@ -152,6 +156,7 @@ Route::middleware(['auth'])->group(function () {
     // Admin Settings Route
     Route::get('admin/settings', [AdminController::class, 'settings'])->name('admin.settings');
     Route::post('admin/settings/profile', [AdminController::class, 'updateProfile'])->name('admin.settings.profile');
+    Route::post('admin/settings/profile-image', [AdminController::class, 'updateProfileImage'])->name('admin.settings.profile.image');
     Route::post('admin/backup', [AdminController::class, 'backup'])->name('admin.backup');
     Route::post('admin/restore', [AdminController::class, 'restore'])->name('admin.restore');
     Route::get('admin/backups', [AdminController::class, 'listBackups'])->name('admin.backups.list');
@@ -177,7 +182,22 @@ Route::middleware(['auth'])->group(function () {
     // Inventory Routes
     Route::get('inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::post('inventory', [InventoryController::class, 'store'])->name('inventory.store');
+    Route::put('inventory/{tank}', [InventoryController::class, 'update'])->name('inventory.update');
     Route::post('inventory/maintenance', [InventoryController::class, 'storeMaintenance'])->name('inventory.maintenance.store');
+    Route::post('inventory/maintenance/{maintenance}/complete', [InventoryController::class, 'completeMaintenance'])->name('inventory.maintenance.complete');
+
+    // Supplier Order Routes (Admin)
+    Route::get('admin/supplier-orders', [SupplierOrderController::class, 'index'])->name('admin.supplier-orders.index');
+    Route::post('admin/supplier-orders', [SupplierOrderController::class, 'store'])->name('admin.supplier-orders.store');
+    Route::post('admin/supplier-orders/{order}/receive', [SupplierOrderController::class, 'receive'])->name('admin.supplier-orders.receive');
+    Route::post('admin/supplier-orders/{order}/cancel', [SupplierOrderController::class, 'cancel'])->name('admin.supplier-orders.cancel');
+    Route::put('admin/supplier-orders/{order}/payment', [SupplierOrderController::class, 'updatePayment'])->name('admin.supplier-orders.payment');
+
+    // Supplier Order Routes (Supplier)
+    Route::get('supplier/dashboard', [SupplierOrderController::class, 'supplierIndex'])->name('supplier.dashboard');
+    Route::get('supplier/orders', [SupplierOrderController::class, 'supplierOrders'])->name('supplier.orders');
+    Route::post('supplier/orders/{order}/ship', [SupplierOrderController::class, 'ship'])->name('supplier.orders.ship');
+    Route::post('supplier/orders/{order}/cancel', [SupplierOrderController::class, 'cancel'])->name('supplier.orders.cancel');
 
     // Rental Routes (Approve, Reject, etc.)
     Route::post('rentals/{rentalRequest}/approve', [RentalController::class, 'approve'])->name('rentals.approve');
@@ -191,6 +211,132 @@ Route::middleware(['auth'])->group(function () {
     Route::post('notifications/{notification}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::post('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::delete('notifications/{notification}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+    
+    // Reports Route
+    Route::get('reports', function () {
+        $period = request('period', 'monthly'); // daily, weekly, monthly
+        
+        $chartData = collect();
+        
+        if ($period === 'daily') {
+            // Last 7 days
+            for ($i = 6; $i >= 0; $i--) {
+                $date = now()->subDays($i);
+                $dayName = $date->format('D'); // Mon, Tue, etc.
+                
+                $rentalCount = \App\Models\Rental::whereDate('created_at', $date->toDateString())
+                    ->count();
+                
+                $salesTotal = \App\Models\Rental::whereDate('created_at', $date->toDateString())
+                    ->sum('total_amount') ?? 0;
+                
+                $refillCount = \App\Models\RentalRequest::whereDate('created_at', $date->toDateString())
+                    ->count();
+                
+                $chartData->push([
+                    'label' => $dayName,
+                    'rentals' => $rentalCount,
+                    'sales' => (float) $salesTotal,
+                    'refills' => $refillCount
+                ]);
+            }
+        } elseif ($period === 'weekly') {
+            // Last 4 weeks
+            for ($i = 3; $i >= 0; $i--) {
+                $startOfWeek = now()->subWeeks($i)->startOfWeek();
+                $endOfWeek = now()->subWeeks($i)->endOfWeek();
+                $weekLabel = 'Week ' . now()->subWeeks($i)->weekOfYear;
+                
+                $rentalCount = \App\Models\Rental::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                    ->count();
+                
+                $salesTotal = \App\Models\Rental::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                    ->sum('total_amount') ?? 0;
+                
+                $refillCount = \App\Models\RentalRequest::whereBetween('created_at', [$startOfWeek, $endOfWeek])
+                    ->count();
+                
+                $chartData->push([
+                    'label' => $weekLabel,
+                    'rentals' => $rentalCount,
+                    'sales' => (float) $salesTotal,
+                    'refills' => $refillCount
+                ]);
+            }
+        } else {
+            // Monthly - Last 6 months (default)
+            for ($i = 5; $i >= 0; $i--) {
+                $date = now()->subMonths($i);
+                $monthName = $date->format('M');
+                
+                $rentalCount = \App\Models\Rental::whereYear('created_at', $date->year)
+                    ->whereMonth('created_at', $date->month)
+                    ->count();
+                
+                $salesTotal = \App\Models\Rental::whereYear('created_at', $date->year)
+                    ->whereMonth('created_at', $date->month)
+                    ->sum('total_amount') ?? 0;
+                
+                $refillCount = \App\Models\RentalRequest::whereYear('created_at', $date->year)
+                    ->whereMonth('created_at', $date->month)
+                    ->count();
+                
+                $chartData->push([
+                    'label' => $monthName,
+                    'rentals' => $rentalCount,
+                    'sales' => (float) $salesTotal,
+                    'refills' => $refillCount
+                ]);
+            }
+        }
+        
+        // Calculate totals based on period
+        if ($period === 'daily') {
+            $totalRentals = \App\Models\Rental::whereDate('created_at', '>=', now()->subDays(7))->count();
+            $totalSales = \App\Models\Rental::whereDate('created_at', '>=', now()->subDays(7))->sum('total_amount') ?? 0;
+            $currentPeriodRentals = \App\Models\Rental::whereDate('created_at', today())->count();
+            $currentPeriodSales = \App\Models\Rental::whereDate('created_at', today())->sum('total_amount') ?? 0;
+        } elseif ($period === 'weekly') {
+            $totalRentals = \App\Models\Rental::whereBetween('created_at', [now()->subWeeks(4)->startOfWeek(), now()])->count();
+            $totalSales = \App\Models\Rental::whereBetween('created_at', [now()->subWeeks(4)->startOfWeek(), now()])->sum('total_amount') ?? 0;
+            $currentPeriodRentals = \App\Models\Rental::whereBetween('created_at', [now()->startOfWeek(), now()])->count();
+            $currentPeriodSales = \App\Models\Rental::whereBetween('created_at', [now()->startOfWeek(), now()])->sum('total_amount') ?? 0;
+        } else {
+            $totalRentals = \App\Models\Rental::count();
+            $totalSales = \App\Models\Rental::sum('total_amount') ?? 0;
+            $currentPeriodRentals = \App\Models\Rental::whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->count();
+            $currentPeriodSales = \App\Models\Rental::whereYear('created_at', now()->year)
+                ->whereMonth('created_at', now()->month)
+                ->sum('total_amount') ?? 0;
+        }
+        
+        // Get cylinder distribution data from tanks - show current inventory stock only
+        $cylinderDistribution = \App\Models\Tank::select('tank_type')
+            ->selectRaw('SUM(quantity) as total_quantity')
+            ->groupBy('tank_type')
+            ->orderBy('total_quantity', 'desc')
+            ->get()
+            ->map(function ($tank, $index) {
+                $colors = ['#3b82f6', '#22c55e', '#f59e0b', '#6b7280', '#8b5cf6', '#ef4444'];
+                return [
+                    'name' => $tank->tank_type,
+                    'quantity' => (int) $tank->total_quantity,
+                    'color' => $colors[$index % count($colors)]
+                ];
+            });
+        
+        return Inertia::render('reports/index', [
+            'chartData' => $chartData,
+            'totalRentals' => $totalRentals,
+            'totalSales' => (float) $totalSales,
+            'currentPeriodRentals' => $currentPeriodRentals,
+            'currentPeriodSales' => (float) $currentPeriodSales,
+            'cylinderDistribution' => $cylinderDistribution,
+            'currentPeriod' => $period
+        ]);
+    })->name('reports');
 });
 
 require __DIR__.'/settings.php';

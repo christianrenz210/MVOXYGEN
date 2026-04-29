@@ -10,9 +10,11 @@ class Tank extends Model
     protected $fillable = [
         'tank_type',
         'quantity',
+        'price',
         'last_refilled',
         'status',
         'tank_id',
+        'image',
     ];
 
     protected static function boot()

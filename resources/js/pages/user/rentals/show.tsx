@@ -12,6 +12,7 @@ interface RentalRequest {
     id: number;
     request_type: string;
     tank_type: string;
+    assigned_tank_id?: string;
     quantity: number;
     start_date: string;
     end_date: string;
@@ -151,6 +152,16 @@ export default function RentalShow() {
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">Quantity</label>
                                         <p className="text-lg font-semibold">{rentalRequest.quantity}</p>
+                                    </div>
+                                    <div>
+                                        <label className="text-sm font-medium text-gray-500">Tank ID</label>
+                                        <p className="text-lg font-semibold">
+                                            {rentalRequest.assigned_tank_id ? (
+                                                <span className="text-blue-600">{rentalRequest.assigned_tank_id}</span>
+                                            ) : (
+                                                <span className="text-gray-400">TBD</span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                                 <div>

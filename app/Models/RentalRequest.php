@@ -13,6 +13,7 @@ class RentalRequest extends Model
         'request_type',
         'product_id',
         'tank_type',
+        'assigned_tank_id',
         'quantity',
         'start_date',
         'end_date',
@@ -20,6 +21,7 @@ class RentalRequest extends Model
         'contact_number',
         'address',
         'status',
+        'priority',
         'admin_notes',
         'rejected_reason',
         'tracking_number'
@@ -47,6 +49,16 @@ class RentalRequest extends Model
     public function rental(): HasOne
     {
         return $this->hasOne(Rental::class);
+    }
+
+    public function assignedTank(): BelongsTo
+    {
+        return $this->belongsTo(Tank::class, 'assigned_tank_id', 'tank_id');
+    }
+
+    public function maintenance()
+    {
+        return $this->hasOne(Maintenance::class, 'tank_type', 'tank_type');
     }
 
     public function getStatusBadgeAttribute(): string

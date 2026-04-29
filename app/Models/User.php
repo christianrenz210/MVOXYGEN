@@ -90,6 +90,14 @@ class User extends Authenticatable
     }
 
     /**
+     * Get the supplier profile for the user.
+     */
+    public function supplier()
+    {
+        return $this->hasOne(Supplier::class, 'user_id');
+    }
+
+    /**
      * Get the unread notifications for the user.
      */
     public function unreadNotifications(): HasMany
@@ -113,6 +121,11 @@ class User extends Authenticatable
         // Admin users go to admin dashboard
         if ($this->isAdmin()) {
             return 'dashboard';
+        }
+        
+        // Vendor/Supplier users go to supplier dashboard
+        if ($this->role === 'vendor') {
+            return 'supplier.dashboard';
         }
         
         // Customer users go to user dashboard

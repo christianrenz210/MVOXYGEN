@@ -55,6 +55,7 @@ interface RentalRequest {
     pickup_lat?: number;
     pickup_lng?: number;
     pickup_address?: string;
+    assigned_tank_id?: string;
 }
 
 interface ActiveRental {
@@ -316,7 +317,9 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
                                                         <Package className="w-4 h-4 mr-2 text-muted-foreground/60" />
                                                         <div>
                                                             <div className="font-medium text-foreground/90">Tank ID</div>
-                                                            <div className="text-xs text-foreground/80">{rental.tank_id || 'TBD'}</div>
+                                                            <div className="text-xs text-foreground/80 truncate">
+                                                                {rental.tank_id || rental.rental_request?.assigned_tank_id || 'TBD'}
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>

@@ -65,6 +65,7 @@ export default function UserSettings() {
         address: user.address || '',
         profile_image: null as File | null,
     });
+    const [isUploadingImage, setIsUploadingImage] = React.useState(false);
 
     const handleProfileUpdate = (e: React.FormEvent) => {
         e.preventDefault();
@@ -81,6 +82,7 @@ export default function UserSettings() {
             onSuccess: () => {
                 // Show success message (handled by flash session)
                 console.log('Profile updated successfully');
+                router.reload();
             },
             onError: (errors) => {
                 console.error('Profile update errors:', errors);
@@ -140,21 +142,45 @@ export default function UserSettings() {
                                     )}
                                 </div>
                                 <div>
-                                    <Label htmlFor="profile_image">Profile Image</Label>
-                                    <Input
-                                        id="profile_image"
-                                        name="profile_image"
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                setFormData({ ...formData, profile_image: file });
-                                            }
-                                        }}
-                                        className="mt-1"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 2MB.</p>
+                                    <p className="text-sm text-gray-600">User Profile</p>
+                                    <p className="text-xs text-gray-500 mt-1">Manage your profile information</p>
+                                    <div className="mt-3 flex gap-2">
+                                        <input
+                                            type="file"
+                                            id="profile_image"
+                                            accept="image/*"
+                                            onChange={(e) => {
+                                                const file = e.target.files?.[0];
+                                                if (file) {
+                                                    setFormData({ ...formData, profile_image: file });
+                                                }
+                                            }}
+                                            className="hidden"
+                                        />
+                                        <label
+                                            htmlFor="profile_image"
+                                            className="px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
+                                        >
+                                            Choose Image
+                                        </label>
+                                        {formData.profile_image && (
+                                            <Button
+                                                type="button"
+                                                size="sm"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    handleProfileUpdate(e);
+                                                }}
+                                                disabled={isUploadingImage}
+                                                className="text-xs"
+                                            >
+                                                {isUploadingImage ? 'Uploading...' : 'Upload'}
+                                            </Button>
+                                        )}
+                                    </div>
+                                    {formData.profile_image && (
+                                        <p className="text-xs text-gray-500 mt-1">Selected: {formData.profile_image.name}</p>
+                                    )}
                                 </div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
