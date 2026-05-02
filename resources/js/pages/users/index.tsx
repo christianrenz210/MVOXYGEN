@@ -5,7 +5,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { User, Archive, Restore, Shield } from 'lucide-react';
+import { User, Archive, RotateCcw, Shield } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { type BreadcrumbItem } from '@/types';
 
@@ -121,7 +121,7 @@ export default function UserIndex() {
                                                         onClick={() => handleRestore(user.id)}
                                                         disabled={user.id === auth.user.id}
                                                     >
-                                                        <Restore className="w-4 h-4 mr-1" />
+                                                        <RotateCcw className="w-4 h-4 mr-1" />
                                                         Restore
                                                     </Button>
                                                 ) : (

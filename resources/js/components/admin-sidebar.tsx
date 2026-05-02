@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { LayoutGrid, Users, Package, RefreshCw, FileText, BarChart3, Settings, ShoppingCart, TrendingUp, AlertCircle, Calendar, DollarSign } from 'lucide-react';
+import { LayoutGrid, Users, Package, RefreshCw, FileText, BarChart3, Settings, ShoppingCart, TrendingUp, AlertCircle, Calendar, DollarSign, CreditCard } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const adminNavItems: NavItem[] = [
@@ -17,6 +17,11 @@ const adminNavItems: NavItem[] = [
         title: 'Customers',
         url: '/customer',
         icon: Users,
+    },
+    {
+        title: 'Cashier',
+        url: '/cashier',
+        icon: CreditCard,
     },
     {
         title: 'Rentals',

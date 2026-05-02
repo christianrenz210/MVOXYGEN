@@ -13,6 +13,7 @@ import AddCustomerDialog from '@/components/add-customer-dialog';
 import EditCustomerDialog from '@/components/edit-customer-dialog';
 import ArchiveCustomerDialog from '@/components/archive-customer-dialog';
 import RestoreCustomerDialog from '@/components/restore-customer-dialog';
+import ViewCustomerDialog from '@/components/view-customer-dialog';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { type BreadcrumbItem } from '@/types';
 
@@ -50,11 +51,21 @@ interface Customer {
     name: string;
     contact_number: string;
     address: string;
+    delivery_address?: string;
     status: 'active' | 'inactive' | 'archived';
     total_rentals: number;
     created_at: string;
     updated_at?: string;
     recent_transactions?: Transaction[];
+    user?: {
+        id: number;
+        name: string;
+        email: string;
+        phone?: string;
+        role?: string;
+        profile_image?: string;
+        status?: string;
+    };
 }
 
 interface CustomerPageProps {
@@ -72,6 +83,11 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
     const [searchTerm, setSearchTerm] = useState('');
     const [showSuccess, setShowSuccess] = useState(false);
     const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'archived'>('all');
+    const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+    const [showViewDialog, setShowViewDialog] = useState(false);
+    const [customerPage, setCustomerPage] = useState(1);
+    const [transactionPage, setTransactionPage] = useState(1);
+    const itemsPerPage = 10;
 
     // Show success message when it exists
     useEffect(() => {
@@ -97,6 +113,20 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
         
         return matchesSearch && matchesStatus;
     });
+
+    // Pagination for customers
+    const totalCustomers = filteredCustomers.length;
+    const totalPages = Math.ceil(totalCustomers / itemsPerPage);
+    const startIndex = (customerPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentCustomers = filteredCustomers.slice(startIndex, endIndex);
+
+    // Pagination for transactions
+    const totalTransactions = recentTransactions.length;
+    const totalTransactionPages = Math.ceil(totalTransactions / itemsPerPage);
+    const transactionStartIndex = (transactionPage - 1) * itemsPerPage;
+    const transactionEndIndex = transactionStartIndex + itemsPerPage;
+    const currentTransactions = recentTransactions.slice(transactionStartIndex, transactionEndIndex);
 
     const activeCustomers = customers.filter(c => c.status === 'active').length;
     const inactiveCustomers = customers.filter(c => c.status === 'inactive').length;
@@ -189,26 +219,70 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                 {/* Search and Filter */}
                 <Card>
                     <CardHeader>
-                        <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-                            <CardTitle>Customer Directory</CardTitle>
-                            <div className="flex gap-2">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="outline" size="sm" className="gap-2">
-                                            <Filter className="h-4 w-4" />
-                                            {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive' | 'archived')}>
-                                            <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
-                                            <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
-                                            <DropdownMenuRadioItem value="inactive">Inactive</DropdownMenuRadioItem>
-                                            <DropdownMenuRadioItem value="archived">Archived</DropdownMenuRadioItem>
-                                        </DropdownMenuRadioGroup>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                                <CardTitle>Customer Directory</CardTitle>
+                                <div className="flex gap-2">
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="sm" className="gap-2">
+                                                <Filter className="h-4 w-4" />
+                                                {statusFilter === 'all' ? 'All' : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuRadioGroup value={statusFilter} onValueChange={(value) => setStatusFilter(value as 'all' | 'active' | 'inactive' | 'archived')}>
+                                                <DropdownMenuRadioItem value="all">All</DropdownMenuRadioItem>
+                                                <DropdownMenuRadioItem value="active">Active</DropdownMenuRadioItem>
+                                                <DropdownMenuRadioItem value="inactive">Inactive</DropdownMenuRadioItem>
+                                                <DropdownMenuRadioItem value="archived">Archived</DropdownMenuRadioItem>
+                                            </DropdownMenuRadioGroup>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                </div>
                             </div>
+                            
+                            {/* Customer Directory Header Pagination */}
+                            {totalPages > 1 && (
+                                <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                                    <div className="text-sm text-muted-foreground">
+                                        Showing {startIndex + 1} to {Math.min(endIndex, totalCustomers)} of {totalCustomers} customers
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCustomerPage(customerPage - 1)}
+                                            disabled={customerPage === 1}
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                            Previous
+                                        </Button>
+                                        <div className="flex items-center space-x-1">
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                                <Button
+                                                    key={page}
+                                                    variant={page === customerPage ? "default" : "outline"}
+                                                    size="sm"
+                                                    onClick={() => setCustomerPage(page)}
+                                                    className="w-8 h-8 p-0"
+                                                >
+                                                    {page}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCustomerPage(customerPage + 1)}
+                                            disabled={customerPage === totalPages}
+                                        >
+                                            Next
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                         <div className="relative w-full sm:w-64 mt-4">
                             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -235,7 +309,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {filteredCustomers.map((customer) => (
+                                    {currentCustomers.map((customer) => (
                                         <TableRow key={customer.id} className="hover:bg-muted/50">
                                             <TableCell>
                                                 <div>
@@ -252,7 +326,9 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                             <TableCell>
                                                 <div className="flex items-center gap-2 max-w-[200px]">
                                                     <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                    <span className="truncate">{customer.address}</span>
+                                                    <span className="truncate">
+                                                        {customer.delivery_address || customer.address}
+                                                    </span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
@@ -280,7 +356,10 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                                     <Button 
                                                         variant="ghost" 
                                                         size="sm"
-                                                        onClick={() => router.visit(`/customer/${customer.id}`)}
+                                                        onClick={() => {
+                                                            setSelectedCustomer(customer);
+                                                            setShowViewDialog(true);
+                                                        }}
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
@@ -314,6 +393,48 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                 }
                             </div>
                         )}
+                        
+                        {/* Customer Pagination */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-between px-2 py-4">
+                                <div className="text-sm text-muted-foreground">
+                                    Showing {startIndex + 1} to {Math.min(endIndex, totalCustomers)} of {totalCustomers} customers
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCustomerPage(customerPage - 1)}
+                                        disabled={customerPage === 1}
+                                    >
+                                        <ChevronLeft className="h-4 w-4" />
+                                        Previous
+                                    </Button>
+                                    <div className="flex items-center space-x-1">
+                                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                                            <Button
+                                                key={page}
+                                                variant={page === customerPage ? "default" : "outline"}
+                                                size="sm"
+                                                onClick={() => setCustomerPage(page)}
+                                                className="w-8 h-8 p-0"
+                                            >
+                                                {page}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setCustomerPage(customerPage + 1)}
+                                        disabled={customerPage === totalPages}
+                                    >
+                                        Next
+                                        <ChevronRight className="h-4 w-4" />
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -335,8 +456,8 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {recentTransactions && recentTransactions.length > 0 ? (
-                                            recentTransactions.slice(0, 5).map((transaction) => (
+                                        {currentTransactions && currentTransactions.length > 0 ? (
+                                            currentTransactions.map((transaction) => (
                                                 <TableRow key={transaction.id}>
                                                     <TableCell className="font-medium">{transaction.customer_name}</TableCell>
                                                     <TableCell>{transaction.tank_id}</TableCell>
@@ -371,10 +492,66 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                         </TableBody>
                                     </Table>
                                 </div>
+                                
+                                {/* Transaction Pagination */}
+                                {totalTransactionPages > 1 && (
+                                    <div className="flex items-center justify-between px-2 py-4">
+                                        <div className="text-sm text-muted-foreground">
+                                            Showing {transactionStartIndex + 1} to {Math.min(transactionEndIndex, totalTransactions)} of {totalTransactions} transactions
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setTransactionPage(transactionPage - 1)}
+                                                disabled={transactionPage === 1}
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                                Previous
+                                            </Button>
+                                            <div className="flex items-center space-x-1">
+                                                {Array.from({ length: totalTransactionPages }, (_, i) => i + 1).map((page) => (
+                                                    <Button
+                                                        key={page}
+                                                        variant={page === transactionPage ? "default" : "outline"}
+                                                        size="sm"
+                                                        onClick={() => setTransactionPage(page)}
+                                                        className="w-8 h-8 p-0"
+                                                    >
+                                                        {page}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setTransactionPage(transactionPage + 1)}
+                                                disabled={transactionPage === totalTransactionPages}
+                                            >
+                                                Next
+                                                <ChevronRight className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                 </div>
             </div>
+
+            {/* View Customer Dialog */}
+            {selectedCustomer && (
+                <ViewCustomerDialog
+                    customer={selectedCustomer}
+                    open={showViewDialog}
+                    onOpenChange={(open) => {
+                        setShowViewDialog(open);
+                        if (!open) {
+                            setSelectedCustomer(null);
+                        }
+                    }}
+                />
+            )}
         </AppLayout>
     );
 }

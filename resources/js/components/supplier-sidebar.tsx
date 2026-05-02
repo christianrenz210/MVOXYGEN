@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { Home, Package, Settings, Building2, Truck, FileText } from 'lucide-react';
+import { Home, Package, Settings, Building2, Truck, FileText, Boxes } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const supplierNavItems: NavItem[] = [
@@ -17,6 +17,11 @@ const supplierNavItems: NavItem[] = [
         title: 'Orders',
         url: '/supplier/orders',
         icon: Package,
+    },
+    {
+        title: 'Products',
+        url: '/supplier/products',
+        icon: Boxes,
     },
     {
         title: 'Settings',

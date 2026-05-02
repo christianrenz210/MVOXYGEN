@@ -105,6 +105,13 @@ class RentalController extends Controller
 
         // Add deposit information if provided
         if ($request->has('deposit_amount') && $request->deposit_amount) {
+            // Validate minimum deposit amount
+            if ($request->deposit_amount < 1000) {
+                return redirect()->back()
+                    ->with('error', 'Minimum deposit amount is PHP 1,000. Deposits below this amount are not allowed.')
+                    ->withInput();
+            }
+            
             $rentalData['deposit_amount'] = $request->deposit_amount;
             $rentalData['deposit_payment_method'] = $request->deposit_payment_method ?? 'cash';
             $rentalData['deposit_payment_date'] = now();
@@ -191,6 +198,14 @@ class RentalController extends Controller
     public function show(RentalRequest $rentalRequest)
     {
         $rentalRequest->load(['customer', 'product', 'rental']);
+
+        // Use customer address from directory table as delivery address
+        if ($rentalRequest->customer && $rentalRequest->customer->address) {
+            $rentalRequest->delivery_address = $rentalRequest->customer->address;
+        } else {
+            // Fallback to rental request address if customer address is not available
+            $rentalRequest->delivery_address = $rentalRequest->address;
+        }
 
         return Inertia::render('rentals/show', [
             'rentalRequest' => $rentalRequest,

@@ -1,9 +1,32 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
-import { Package, Truck, CheckCircle, XCircle, DollarSign, Clock, RefreshCw } from 'lucide-react';
+import { Package, Truck, CheckCircle, XCircle, DollarSign, Clock, RefreshCw, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useState } from 'react';
+
+interface SupplierProduct {
+    id: number;
+    supplier_id: number;
+    product_name: string;
+    description: string | null;
+    price: number;
+    stock_quantity: number;
+    unit: string;
+    is_active: boolean;
+}
+
+interface Supplier {
+    id: number;
+    name: string;
+    plant_name: string | null;
+    products: SupplierProduct[];
+}
 
 interface SupplierOrder {
     id: number;
@@ -25,6 +48,7 @@ interface SupplierOrder {
 
 interface Props {
     orders: SupplierOrder[];
+    suppliers: Supplier[];
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -32,7 +56,13 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Supplier Orders', href: '/admin/supplier-orders' },
 ];
 
-export default function AdminSupplierOrders({ orders }: Props) {
+export default function AdminSupplierOrders({ orders, suppliers }: Props) {
+    const [showAddDialog, setShowAddDialog] = useState(false);
+    const [selectedSupplier, setSelectedSupplier] = useState<string>('');
+    const [selectedProduct, setSelectedProduct] = useState<string>('');
+    const [quantity, setQuantity] = useState<string>('1');
+    const [notes, setNotes] = useState<string>('');
+
     const handleReceive = (orderId: number) => {
         if (confirm('Are you sure you want to mark this order as received? This will add the items to inventory.')) {
             router.post(`/admin/supplier-orders/${orderId}/receive`);
@@ -79,6 +109,41 @@ export default function AdminSupplierOrders({ orders }: Props) {
         unpaid: orders.filter(o => o.payment_status === 'unpaid').length,
     };
 
+    const getSelectedSupplierProducts = () => {
+        const supplier = suppliers.find(s => s.id.toString() === selectedSupplier);
+        return supplier?.products || [];
+    };
+
+    const getSelectedProductPrice = () => {
+        const products = getSelectedSupplierProducts();
+        const product = products.find(p => p.id.toString() === selectedProduct);
+        return product?.price || 0;
+    };
+
+    const handleSubmitOrder = (e: React.FormEvent) => {
+        e.preventDefault();
+        const products = getSelectedSupplierProducts();
+        const product = products.find(p => p.id.toString() === selectedProduct);
+        
+        if (!product || !selectedSupplier) return;
+
+        router.post('/admin/supplier-orders', {
+            supplier_id: parseInt(selectedSupplier),
+            tank_type: product.product_name,
+            quantity: parseInt(quantity),
+            price: product.price,
+            notes: notes,
+        }, {
+            onSuccess: () => {
+                setShowAddDialog(false);
+                setSelectedSupplier('');
+                setSelectedProduct('');
+                setQuantity('1');
+                setNotes('');
+            }
+        });
+    };
+
     return (
         <AppLayout>
             <Head title="Supplier Orders - Admin" />
@@ -95,6 +160,10 @@ export default function AdminSupplierOrders({ orders }: Props) {
                         <h1 className="text-3xl font-bold text-gray-900">Supplier Orders</h1>
                         <p className="mt-2 text-gray-600">Manage orders from suppliers</p>
                     </div>
+                    <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+                        <Plus className="h-4 w-4" />
+                        New Order
+                    </Button>
                 </div>
 
                 {/* Stats Cards */}
@@ -232,6 +301,116 @@ export default function AdminSupplierOrders({ orders }: Props) {
                     )}
                 </div>
             </div>
+
+            {/* New Order Dialog */}
+            <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+                <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                        <DialogTitle>New Supplier Order</DialogTitle>
+                        <DialogDescription>
+                            Place an order to a supplier. Only products they offer will be shown.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleSubmitOrder} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="supplier">Supplier</Label>
+                            <Select value={selectedSupplier} onValueChange={(value) => {
+                                setSelectedSupplier(value);
+                                setSelectedProduct(''); // Reset product when supplier changes
+                            }}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select supplier" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {suppliers.map((supplier) => (
+                                        <SelectItem key={supplier.id} value={supplier.id.toString()}>
+                                            {supplier.name}
+                                            {supplier.plant_name && ` (${supplier.plant_name})`}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="product">Product</Label>
+                            <Select 
+                                value={selectedProduct} 
+                                onValueChange={setSelectedProduct}
+                                disabled={!selectedSupplier || getSelectedSupplierProducts().length === 0}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder={
+                                        !selectedSupplier 
+                                            ? "Select supplier first" 
+                                            : getSelectedSupplierProducts().length === 0 
+                                                ? "No products available" 
+                                                : "Select product"
+                                    } />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {getSelectedSupplierProducts().map((product) => (
+                                        <SelectItem key={product.id} value={product.id.toString()}>
+                                            {product.product_name} - ₱{product.price.toFixed(2)} / {product.unit}
+                                            {product.stock_quantity <= 0 && ' (Out of Stock)'}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {selectedProduct && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm">
+                                <p><strong>Price:</strong> ₱{getSelectedProductPrice().toFixed(2)} per unit</p>
+                                <p><strong>Available Stock:</strong> {getSelectedSupplierProducts().find(p => p.id.toString() === selectedProduct)?.stock_quantity || 0} units</p>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="quantity">Quantity</Label>
+                            <Input
+                                id="quantity"
+                                type="number"
+                                min="1"
+                                value={quantity}
+                                onChange={(e) => setQuantity(e.target.value)}
+                                required
+                            />
+                        </div>
+
+                        {selectedProduct && quantity && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-md p-3">
+                                <p className="font-medium">
+                                    Total: ₱{(getSelectedProductPrice() * parseInt(quantity || '0')).toFixed(2)}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="notes">Notes (Optional)</Label>
+                            <Input
+                                id="notes"
+                                value={notes}
+                                onChange={(e) => setNotes(e.target.value)}
+                                placeholder="Any special instructions..."
+                            />
+                        </div>
+
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setShowAddDialog(false)}>
+                                Cancel
+                            </Button>
+                            <Button 
+                                type="submit" 
+                                disabled={!selectedSupplier || !selectedProduct}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Place Order
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

@@ -1,9 +1,9 @@
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
-import { Breadcrumbs } from '@/components/breadcrumbs';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, AreaChart, BarChart, Bar, Cell } from 'recharts';
-import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock } from 'lucide-react';
+import { BreadcrumbItem } from '@/types';
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 
 interface ChartData {
     label: string;
@@ -20,27 +20,43 @@ interface CylinderData {
 
 interface Props {
     chartData: ChartData[];
+    tableData: Array<{
+        period: string;
+        full_date?: string;
+        type: string;
+        customer_name: string;
+        amount: number;
+        tank_type: string;
+    }>;
     totalRentals: number;
     totalSales: number;
     currentPeriodRentals: number;
     currentPeriodSales: number;
     cylinderDistribution: CylinderData[];
     currentPeriod: 'daily' | 'weekly' | 'monthly';
+    comparisonData?: any;
+    compareMode: 'none' | 'today' | 'custom' | 'last30';
+    comparisonChartData?: ChartData[];
 }
 
 export default function Reports({ 
     chartData, 
+    tableData,
     totalRentals, 
     totalSales,
     currentPeriodRentals,
     currentPeriodSales,
     cylinderDistribution,
-    currentPeriod
+    currentPeriod,
+    comparisonData,
+    compareMode,
+    comparisonChartData
 }: Props) {
-    const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'Dashboard', href: '/dashboard' },
-        { title: 'Reports', href: '/reports' }
-    ];
+    const [currentChart, setCurrentChart] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [customStartDate, setCustomStartDate] = useState('');
+    const [customEndDate, setCustomEndDate] = useState('');
+    const itemsPerPage = 10;
 
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-PH', {
@@ -50,257 +66,850 @@ export default function Reports({
         }).format(value);
     };
 
+    const exportToCSV = (data: any[], filename: string) => {
+        if (data.length === 0) {
+            alert('No data available to export');
+            return;
+        }
+
+        // Convert data to CSV format
+        const csvContent = convertToCSV(data);
+        
+        // Create blob and download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${filename}.csv`);
+        link.style.visibility = 'hidden';
+        
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+    };
+
+    const convertToCSV = (data: any[]): string => {
+        if (data.length === 0) return '';
+        
+        // Get headers from first object
+        const headers = Object.keys(data[0]);
+        
+        // Create CSV content
+        const csvContent = [
+            headers.join(','),
+            ...data.map(row => 
+                headers.map(header => {
+                    const value = row[header];
+                    // Handle values that might contain commas or quotes
+                    const escapedValue = typeof value === 'string' && (value.includes(',') || value.includes('"')) 
+                        ? `"${value.replace(/"/g, '""')}"` 
+                        : value;
+                    return escapedValue;
+                }).join(',')
+            )
+        ].join('\n');
+        
+        return csvContent;
+    };
+
+    const exportRefillsData = () => {
+        const refillsData = tableData
+            .filter(item => item.type === 'refill')
+            .map(item => ({
+                'Period/Date': currentPeriod === 'monthly' ? item.full_date : item.period,
+                'Customer Name': item.customer_name,
+                'Tank Type': item.tank_type,
+                'Refills': item.amount || 0
+            }));
+        
+        exportToCSV(refillsData, `refills_report_${currentPeriod}_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const exportRentalsData = () => {
+        const rentalsData = tableData
+            .filter(item => item.type === 'rental')
+            .map(item => ({
+                'Period/Date': currentPeriod === 'monthly' ? item.full_date : item.period,
+                'Customer Name': item.customer_name,
+                'Tank Type': item.tank_type,
+                'Amount': formatCurrency(item.amount)
+            }));
+        
+        exportToCSV(rentalsData, `rentals_report_${currentPeriod}_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const exportSalesData = () => {
+        const salesData = tableData
+            .filter(item => item.type === 'sale')
+            .map(item => ({
+                'Date': currentPeriod === 'monthly' ? item.full_date : item.period,
+                'Customer Name': item.customer_name,
+                'Tank Type': item.tank_type,
+                'Amount': formatCurrency(item.amount)
+            }));
+        
+        exportToCSV(salesData, `sales_report_${currentPeriod}_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const exportCylindersData = () => {
+        exportToCSV(cylinderDistribution.map(item => ({
+            'Tank Type': item.name,
+            'Quantity': item.quantity,
+            'Color': item.color
+        })), `cylinder_distribution_${new Date().toISOString().split('T')[0]}`);
+    };
+
+    const charts = [
+        {
+            id: 'refills',
+            title: `${currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Refills`,
+            component: (
+                <div>
+                    <div style={{ height: '400px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={compareMode !== 'none' && comparisonChartData ? comparisonChartData : chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorRefills" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="label" />
+                                <YAxis />
+                                <Tooltip formatter={(value) => [`${value} refills`, 'Refill Requests']} />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="refills" 
+                                    stroke="#f97316" 
+                                    strokeWidth={3}
+                                    fillOpacity={1} 
+                                    fill="url(#colorRefills)" 
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-6 flex flex-col items-center">
+                        <div className="overflow-x-auto w-full max-w-4xl">
+                            <table className="w-full text-sm text-center">
+                                <thead>
+                                    <tr className="border-b border-gray-200">
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">
+                                            {currentPeriod === 'monthly' ? 'Date' : 'Period'}
+                                        </th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Customer Name</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Tank Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tableData
+                                        .filter(item => item.type === 'refill')
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map((item, index) => (
+                                            <tr key={index} className="border-b border-gray-100">
+                                                <td className="py-3 px-4 text-gray-800 text-center">
+                                                    {currentPeriod === 'monthly' ? item.full_date : item.period}
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.customer_name}</td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.tank_type}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex items-center justify-center gap-4 mt-4">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm text-gray-600">
+                                Page {currentPage} of {Math.ceil(tableData.filter(item => item.type === 'refill').length / itemsPerPage)}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(tableData.filter(item => item.type === 'refill').length / itemsPerPage), prev + 1))}
+                                disabled={currentPage >= Math.ceil(tableData.filter(item => item.type === 'refill').length / itemsPerPage)}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={exportRefillsData}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Refills
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'rentals',
+            title: `${currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Rentals`,
+            component: (
+                <div>
+                    <div style={{ height: '400px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={compareMode !== 'none' && comparisonChartData ? comparisonChartData : chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorRentals" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="label" />
+                                <YAxis />
+                                <Tooltip />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="rentals" 
+                                    stroke="#3b82f6" 
+                                    strokeWidth={3}
+                                    fillOpacity={1} 
+                                    fill="url(#colorRentals)" 
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-6 flex flex-col items-center">
+                        <div className="overflow-x-auto w-full max-w-4xl">
+                            <table className="w-full text-sm text-center">
+                                <thead>
+                                    <tr className="border-b border-gray-200">
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">
+                                            {currentPeriod === 'monthly' ? 'Date' : 'Period'}
+                                        </th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Customer Name</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Tank Type</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tableData
+                                        .filter(item => item.type === 'rental')
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map((item, index) => (
+                                            <tr key={index} className="border-b border-gray-100">
+                                                <td className="py-3 px-4 text-gray-800 text-center">
+                                                    {currentPeriod === 'monthly' ? item.full_date : item.period}
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.customer_name}</td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.tank_type}</td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{formatCurrency(item.amount)}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex items-center justify-center gap-4 mt-4">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm text-gray-600">
+                                Page {currentPage} of {Math.ceil(tableData.filter(item => item.type === 'rental').length / itemsPerPage)}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(tableData.filter(item => item.type === 'rental').length / itemsPerPage), prev + 1))}
+                                disabled={currentPage >= Math.ceil(tableData.filter(item => item.type === 'rental').length / itemsPerPage)}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={exportRentalsData}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Rentals
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'sales',
+            title: `${currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Sales`,
+            component: (
+                <div>
+                    <div style={{ height: '400px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={compareMode !== 'none' && comparisonChartData ? comparisonChartData : chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <XAxis dataKey="label" />
+                                <YAxis />
+                                <Tooltip 
+                                    formatter={(value) => formatCurrency(Number(value))}
+                                />
+                                <Area 
+                                    type="monotone" 
+                                    dataKey="sales" 
+                                    stroke="#22c55e" 
+                                    strokeWidth={3}
+                                    fillOpacity={1} 
+                                    fill="url(#colorSales)" 
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-6 flex flex-col items-center">
+                        <div className="overflow-x-auto w-full max-w-4xl">
+                            <table className="w-full text-sm text-center">
+                                <thead>
+                                    <tr className="border-b border-gray-200">
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">
+                                            {currentPeriod === 'monthly' ? 'Date' : 'Period'}
+                                        </th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Customer Name</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Tank Type</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tableData
+                                        .filter(item => item.type === 'sale')
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map((item, index) => (
+                                            <tr key={index} className="border-b border-gray-100">
+                                                <td className="py-3 px-4 text-gray-800 text-center">
+                                                    {currentPeriod === 'monthly' ? item.full_date : item.period}
+                                                </td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.customer_name}</td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{item.tank_type}</td>
+                                                <td className="py-3 px-4 text-gray-800 text-center">{formatCurrency(item.amount)}</td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex items-center justify-center gap-4 mt-4">
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                                disabled={currentPage === 1}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Previous
+                            </button>
+                            <span className="text-sm text-gray-600">
+                                Page {currentPage} of {Math.ceil(tableData.filter(item => item.type === 'sale').length / itemsPerPage)}
+                            </span>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(Math.ceil(tableData.filter(item => item.type === 'sale').length / itemsPerPage), prev + 1))}
+                                disabled={currentPage >= Math.ceil(tableData.filter(item => item.type === 'sale').length / itemsPerPage)}
+                                className="px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                Next
+                            </button>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={exportSalesData}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Sales
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'cylinders',
+            title: 'Gas Cylinder Distribution',
+            component: (
+                <div>
+                    <div style={{ height: '400px' }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={cylinderDistribution} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                                <XAxis 
+                                    dataKey="name" 
+                                    tick={{ fontSize: 12 }}
+                                    interval={0}
+                                />
+                                <YAxis />
+                                <Tooltip 
+                                    formatter={(value) => [`${value} units`, 'Quantity']}
+                                />
+                                <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
+                                    {cylinderDistribution.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                    <div className="mt-6 flex flex-col items-center">
+                        <div className="overflow-x-auto w-full max-w-4xl">
+                            <table className="w-full text-sm text-center">
+                                <thead>
+                                    <tr className="border-b border-gray-200">
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Tank Type</th>
+                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Quantity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {cylinderDistribution.map((item, index) => (
+                                        <tr key={index} className="border-b border-gray-100">
+                                            <td className="py-3 px-4 text-gray-800 text-center">{item.name}</td>
+                                            <td className="py-3 px-4 text-gray-800 text-center">{item.quantity}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex justify-end mt-4">
+                            <button
+                                onClick={exportCylindersData}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                            >
+                                <Download className="w-4 h-4" />
+                                Export Cylinders
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )
+        }
+    ];
+
+    const nextChart = () => {
+        setCurrentChart((prev: number) => (prev + 1) % charts.length);
+        setCurrentPage(1);
+    };
+
+    const prevChart = () => {
+        setCurrentChart((prev: number) => (prev - 1 + charts.length) % charts.length);
+        setCurrentPage(1);
+    };
+
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: 'Dashboard', href: '/dashboard' },
+        { title: 'Reports', href: '/reports' }
+    ];
+
     return (
         <AppLayout>
             <Head title="Reports" />
             <div className="min-h-screen bg-gray-50 p-6 w-full max-w-none">
                 {/* Breadcrumbs */}
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-6">
-                    <Breadcrumbs breadcrumbs={breadcrumbs} />
                 </div>
 
-                {/* Header with Period Filter */}
-                <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-800 mb-2">Rental Reports</h1>
-                        <p className="text-gray-600">View rental statistics and sales performance</p>
-                    </div>
-                    
-                    {/* Period Filter Buttons */}
-                    <div className="flex items-center gap-2 bg-white rounded-lg shadow p-1">
-                        <button
-                            onClick={() => router.get('/reports', { period: 'daily' }, { preserveState: true })}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                currentPeriod === 'daily' 
-                                    ? 'bg-blue-600 text-white' 
-                                    : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                            Daily
-                        </button>
-                        <button
-                            onClick={() => router.get('/reports', { period: 'weekly' }, { preserveState: true })}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                currentPeriod === 'weekly' 
-                                    ? 'bg-blue-600 text-white' 
-                                    : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                            Weekly
-                        </button>
-                        <button
-                            onClick={() => router.get('/reports', { period: 'monthly' }, { preserveState: true })}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                                currentPeriod === 'monthly' 
-                                    ? 'bg-blue-600 text-white' 
-                                    : 'text-gray-600 hover:bg-gray-100'
-                            }`}
-                        >
-                            Monthly
-                        </button>
+                {/* Header */}
+                <div className="mb-6">
+                    <h1 className="text-3xl font-bold text-gray-800 mb-2">Rental Reports</h1>
+                    <p className="text-gray-600">View rental statistics and sales performance</p>
+                </div>
+
+                {/* Period Filter */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-2xl font-bold text-gray-800">Reports Dashboard</h2>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={() => router.get('/reports', { period: 'daily' })}
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    currentPeriod === 'daily' 
+                                        ? 'bg-blue-600 text-white' 
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                Daily
+                            </button>
+                            <button
+                                onClick={() => router.get('/reports', { period: 'weekly' })}
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    currentPeriod === 'weekly' 
+                                        ? 'bg-blue-600 text-white' 
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                Weekly
+                            </button>
+                            <button
+                                onClick={() => router.get('/reports', { period: 'monthly' })}
+                                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                    currentPeriod === 'monthly' 
+                                        ? 'bg-blue-600 text-white' 
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                Monthly
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                {/* Stats Cards */}
+                {/* Date Comparison Controls */}
+                <div className="bg-white rounded-lg shadow p-4 mb-6">
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-4">
+                            <span className="text-sm font-medium text-gray-700">Compare:</span>
+                            <div className="flex gap-2 flex-wrap">
+                                <button
+                                    onClick={() => router.get('/reports', { period: currentPeriod, compare: 'none' })}
+                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                        compareMode === 'none' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    None
+                                </button>
+                                <button
+                                    onClick={() => router.get('/reports', { period: currentPeriod, compare: 'today' })}
+                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                        compareMode === 'today' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Today vs Yesterday
+                                </button>
+                                <button
+                                    onClick={() => router.get('/reports', { period: currentPeriod, compare: 'last30' })}
+                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                        compareMode === 'last30' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Last 30 Days
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        if (customStartDate && customEndDate) {
+                                            router.get('/reports', { period: currentPeriod, compare: 'custom', start_date: customStartDate, end_date: customEndDate });
+                                        } else {
+                                            alert('Please select both start and end dates');
+                                        }
+                                    }}
+                                    className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
+                                        compareMode === 'custom' 
+                                            ? 'bg-blue-600 text-white' 
+                                            : 'text-gray-600 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    Custom Range
+                                </button>
+                            </div>
+                        </div>
+                        
+                        {compareMode === 'custom' && (
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="date"
+                                    value={customStartDate}
+                                    onChange={(e) => setCustomStartDate(e.target.value)}
+                                    className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="Start date"
+                                />
+                                <span className="text-gray-500">to</span>
+                                <input
+                                    type="date"
+                                    value={customEndDate}
+                                    onChange={(e) => setCustomEndDate(e.target.value)}
+                                    className="px-3 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="End date"
+                                />
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Comparison Results Display */}
+                {compareMode !== 'none' && comparisonData && (
+                    <div className="bg-blue-50 rounded-lg shadow p-4 mb-6">
+                        <h3 className="text-lg font-semibold text-gray-800 mb-3">Comparison Results</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {compareMode === 'today' && (
+                                <>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Today</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.today.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.today.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.today.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Yesterday</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.yesterday.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.yesterday.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.yesterday.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Change</p>
+                                        <p className={`text-2xl font-bold ${comparisonData.percentChanges.rentals >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.rentals >= 0 ? '+' : ''}{comparisonData.percentChanges.rentals.toFixed(1)}% rentals
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.sales >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.sales >= 0 ? '+' : ''}{comparisonData.percentChanges.sales.toFixed(1)}% sales
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.refills >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.refills >= 0 ? '+' : ''}{comparisonData.percentChanges.refills.toFixed(1)}% refills
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                            {compareMode === 'last30' && (
+                                <>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Last 30 Days</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.last30Days.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.last30Days.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.last30Days.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Previous 30 Days</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.previous30Days.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.previous30Days.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.previous30Days.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Change</p>
+                                        <p className={`text-2xl font-bold ${comparisonData.percentChanges.rentals >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.rentals >= 0 ? '+' : ''}{comparisonData.percentChanges.rentals.toFixed(1)}% rentals
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.sales >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.sales >= 0 ? '+' : ''}{comparisonData.percentChanges.sales.toFixed(1)}% sales
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.refills >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.refills >= 0 ? '+' : ''}{comparisonData.percentChanges.refills.toFixed(1)}% refills
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                            {compareMode === 'custom' && comparisonData.custom && (
+                                <>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Custom Range</p>
+                                        <p className="text-xs text-gray-500">{comparisonData.custom.startDate} to {comparisonData.custom.endDate}</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.custom.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.custom.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.custom.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Previous Period</p>
+                                        <p className="text-xs text-gray-500">{comparisonData.previous.startDate} to {comparisonData.previous.endDate}</p>
+                                        <p className="text-2xl font-bold text-gray-800">{comparisonData.previous.rentals} rentals</p>
+                                        <p className="text-sm text-gray-600">{formatCurrency(comparisonData.previous.sales)} sales</p>
+                                        <p className="text-sm text-gray-600">{comparisonData.previous.refills} refills</p>
+                                    </div>
+                                    <div className="bg-white rounded-lg p-4">
+                                        <p className="text-sm text-gray-600">Change</p>
+                                        <p className={`text-2xl font-bold ${comparisonData.percentChanges.rentals >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.rentals >= 0 ? '+' : ''}{comparisonData.percentChanges.rentals.toFixed(1)}% rentals
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.sales >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.sales >= 0 ? '+' : ''}{comparisonData.percentChanges.sales.toFixed(1)}% sales
+                                        </p>
+                                        <p className={`text-sm ${comparisonData.percentChanges.refills >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                            {comparisonData.percentChanges.refills >= 0 ? '+' : ''}{comparisonData.percentChanges.refills.toFixed(1)}% refills
+                                        </p>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Stats Cards - Dynamic based on current chart */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
-                        <div className="flex items-center justify-between">
-                            <div>
+                    {currentChart === 0 && (
+                        // Refills Statistics
+                        <>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Total Refills</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {tableData.filter(item => item.type === 'refill').length}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">
+                                    {currentPeriod === 'daily' ? 'Today' : currentPeriod === 'weekly' ? 'This Week' : 'This Month'} Refills
+                                </p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {tableData.filter(item => item.type === 'refill' && 
+                                        (currentPeriod === 'daily' ? item.period === new Date().toLocaleDateString('en-US', { weekday: 'short' }) :
+                                         currentPeriod === 'weekly' ? item.period.startsWith('Week') :
+                                         true)).length}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Unique Customers</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {[...new Set(tableData.filter(item => item.type === 'refill').map(item => item.customer_name))].length}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Most Common Tank</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {(() => {
+                                        const tankCounts: Record<string, number> = {};
+                                        tableData.filter(item => item.type === 'refill').forEach(item => {
+                                            if (item.tank_type && item.tank_type !== 'N/A') {
+                                                tankCounts[item.tank_type] = (tankCounts[item.tank_type] || 0) + 1;
+                                            }
+                                        });
+                                        const mostCommon = Object.keys(tankCounts).reduce((a, b) => tankCounts[a] > tankCounts[b] ? a : b, 'N/A');
+                                        return mostCommon;
+                                    })()}
+                                </p>
+                            </div>
+                        </>
+                    )}
+
+                    {currentChart === 1 && (
+                        // Rentals Statistics
+                        <>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
                                 <p className="text-gray-500 text-sm">Total Rentals</p>
                                 <p className="text-2xl font-bold text-gray-800">{totalRentals}</p>
                             </div>
-                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                <TrendingUp className="w-6 h-6 text-blue-600" />
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-gray-500 text-sm">Total Sales</p>
-                                <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalSales)}</p>
-                            </div>
-                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                                <DollarSign className="w-6 h-6 text-green-600" />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500">
-                        <div className="flex items-center justify-between">
-                            <div>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
                                 <p className="text-gray-500 text-sm">
                                     {currentPeriod === 'daily' ? 'Today' : currentPeriod === 'weekly' ? 'This Week' : 'This Month'} Rentals
                                 </p>
                                 <p className="text-2xl font-bold text-gray-800">{currentPeriodRentals}</p>
                             </div>
-                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">
-                                <Clock className="w-6 h-6 text-purple-600" />
-                            </div>
-                        </div>
-                    </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-orange-500">
-                        <div className="flex items-center justify-between">
-                            <div>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Total Sales</p>
+                                <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalSales)}</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
                                 <p className="text-gray-500 text-sm">
                                     {currentPeriod === 'daily' ? 'Today' : currentPeriod === 'weekly' ? 'This Week' : 'This Month'} Sales
                                 </p>
                                 <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentPeriodSales)}</p>
                             </div>
-                            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                                <DollarSign className="w-6 h-6 text-orange-600" />
+                        </>
+                    )}
+
+                    {currentChart === 2 && (
+                        // Sales Statistics
+                        <>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Total Sales</p>
+                                <p className="text-2xl font-bold text-gray-800">{formatCurrency(totalSales)}</p>
                             </div>
-                        </div>
-                    </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">
+                                    {currentPeriod === 'daily' ? 'Today' : currentPeriod === 'weekly' ? 'This Week' : 'This Month'} Sales
+                                </p>
+                                <p className="text-2xl font-bold text-gray-800">{formatCurrency(currentPeriodSales)}</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Average Rental Amount</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {formatCurrency(tableData.filter(item => item.type === 'rental' && item.amount > 0).length > 0 
+                                        ? tableData.filter(item => item.type === 'rental' && item.amount > 0).reduce((sum, item) => sum + item.amount, 0) / 
+                                          tableData.filter(item => item.type === 'rental' && item.amount > 0).length 
+                                        : 0)}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Highest Sale</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {formatCurrency(Math.max(...tableData.filter(item => item.type === 'rental' && item.amount > 0).map(item => item.amount), 0))}
+                                </p>
+                            </div>
+                        </>
+                    )}
+
+                    {currentChart === 3 && (
+                        // Cylinder Distribution Statistics
+                        <>
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Total Tanks</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {cylinderDistribution.reduce((sum, item) => sum + item.quantity, 0)}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Tank Types</p>
+                                <p className="text-2xl font-bold text-gray-800">{cylinderDistribution.length}</p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Most Available</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {cylinderDistribution.length > 0 ? cylinderDistribution[0].name : 'N/A'}
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-lg p-6">
+                                <p className="text-gray-500 text-sm">Least Available</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {cylinderDistribution.length > 0 ? cylinderDistribution[cylinderDistribution.length - 1].name : 'N/A'}
+                                </p>
+                            </div>
+                        </>
+                    )}
                 </div>
 
-                {/* Charts Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Refills Chart */}
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <RefreshCw className="w-5 h-5 text-orange-600" />
-                            {currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Refills
-                        </h2>
-                        <div style={{ height: '300px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorRefills" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="label" />
-                                    <YAxis />
-                                    <Tooltip formatter={(value) => [`${value} refills`, 'Refill Requests']} />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="refills" 
-                                        stroke="#f97316" 
-                                        strokeWidth={3}
-                                        fillOpacity={1} 
-                                        fill="url(#colorRefills)" 
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                {/* Charts Section - Single Chart with Navigation */}
+                <div className="mb-8">
+                    <div className="bg-white rounded-xl shadow-lg p-6 max-w-7xl mx-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <button
+                                onClick={prevChart}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <ChevronLeft className="w-6 h-6 text-gray-600" />
+                            </button>
+                            
+                            <h2 className="text-xl font-bold text-gray-800">{charts[currentChart].title}</h2>
+                            
+                            <button
+                                onClick={nextChart}
+                                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                <ChevronRight className="w-6 h-6 text-gray-600" />
+                            </button>
                         </div>
-                        <div className="flex items-center gap-2 mt-4 justify-center">
-                            <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                            <span className="text-sm text-gray-600">Number of Refills</span>
-                        </div>
-                    </div>
-
-                    {/* Rentals Chart */}
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <TrendingUp className="w-5 h-5 text-blue-600" />
-                            {currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Rentals
-                        </h2>
-                        <div style={{ height: '300px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorRentals" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="label" />
-                                    <YAxis />
-                                    <Tooltip />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="rentals" 
-                                        stroke="#3b82f6" 
-                                        strokeWidth={3}
-                                        fillOpacity={1} 
-                                        fill="url(#colorRentals)" 
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="flex items-center gap-2 mt-4 justify-center">
-                            <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span className="text-sm text-gray-600">Number of Rentals</span>
-                        </div>
-                    </div>
-
-                    {/* Sales Chart */}
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <DollarSign className="w-5 h-5 text-green-600" />
-                            {currentPeriod === 'daily' ? 'Daily' : currentPeriod === 'weekly' ? 'Weekly' : 'Monthly'} Sales
-                        </h2>
-                        <div style={{ height: '300px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                                        </linearGradient>
-                                    </defs>
-                                    <XAxis dataKey="label" />
-                                    <YAxis />
-                                    <Tooltip 
-                                        formatter={(value) => formatCurrency(Number(value))}
-                                    />
-                                    <Area 
-                                        type="monotone" 
-                                        dataKey="sales" 
-                                        stroke="#22c55e" 
-                                        strokeWidth={3}
-                                        fillOpacity={1} 
-                                        fill="url(#colorSales)" 
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
-                        <div className="flex items-center gap-2 mt-4 justify-center">
-                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                            <span className="text-sm text-gray-600">Sales Revenue</span>
-                        </div>
-                    </div>
-
-                    {/* Gas Cylinder Distribution Chart */}
-                    <div className="bg-white rounded-xl shadow-lg p-6">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                            <Package className="w-5 h-5 text-purple-600" />
-                            Gas Cylinder Distribution
-                        </h2>
-                        <div style={{ height: '300px' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={cylinderDistribution} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                                    <XAxis 
-                                        dataKey="name" 
-                                        tick={{ fontSize: 12 }}
-                                        interval={0}
-                                    />
-                                    <YAxis />
-                                    <Tooltip 
-                                        formatter={(value) => [`${value} units`, 'Quantity']}
-                                    />
-                                    <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
-                                        {cylinderDistribution.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.color} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
-                        {/* Color Legend */}
-                        <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
-                            {cylinderDistribution.map((item, index) => (
-                                <div key={index} className="flex items-center gap-2">
-                                    <div 
-                                        className="w-3 h-3 rounded-full" 
-                                        style={{ backgroundColor: item.color }}
-                                    ></div>
-                                    <span className="text-sm text-gray-600">{item.name}</span>
-                                </div>
+                        
+                        {charts[currentChart].component}
+                        
+                        {/* Chart Indicators */}
+                        <div className="flex justify-center gap-2 mt-4">
+                            {charts.map((chart, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => setCurrentChart(index)}
+                                    className={`w-2 h-2 rounded-full transition-colors ${
+                                        index === currentChart ? 'bg-blue-600' : 'bg-gray-300'
+                                    }`}
+                                />
                             ))}
                         </div>
                     </div>

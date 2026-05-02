@@ -1,0 +1,7 @@
+tunnel: 
+credentials-file: C:\Users\chris\.cloudflared\mv-oxygen-frontend.json 
+ 
+ingress: 
+  - hostname: app.yourdomain.com 
+    service: http://localhost:5173 
+  - service: http_status:404 

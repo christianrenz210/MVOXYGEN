@@ -7,6 +7,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+declare global {
+    interface Window {
+        grecaptcha: any;
+    }
+}
+
 interface RegisterForm {
     name: string;
     email: string;
@@ -25,14 +31,6 @@ interface RegisterProps {
 }
 
 export default function Register({ status, otp_sent, otp_error, user_id, otp_code }: RegisterProps) {
-    const { data, setData, post, processing, errors, reset } = useForm<RegisterForm>({
-        name: '',
-        email: '',
-        phone: '',
-        password: '',
-        password_confirmation: '',
-    });
-
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [passwordStrength, setPasswordStrength] = useState(0);
@@ -44,6 +42,19 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
     const [otpCode, setOtpCode] = useState('');
     const [userId, setUserId] = useState('');
     const [testOtpCode, setTestOtpCode] = useState('');
+    const [recaptchaToken, setRecaptchaToken] = useState('');
+    const [recaptchaError, setRecaptchaError] = useState('');
+    const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+
+    // Register form data
+    const { data, setData, post, processing, errors, reset } = useForm<RegisterForm>({
+        name: '',
+        email: '',
+        phone: '',
+        password: '',
+        password_confirmation: '',
+        recaptcha_token: '',
+    });
 
     // Password requirements state
     const [requirements, setRequirements] = useState({
@@ -56,14 +67,21 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        
+        // If no reCAPTCHA token, don't submit
+        if (!recaptchaToken) {
+            return;
+        }
+        
+        // Submit form
         post(route('register'), {
             onSuccess: (page) => {
                 // Handle successful registration
                 if (page.props.otp_code) {
-                    setTestOtpCode(page.props.otp_code || '');
+                    setTestOtpCode(String(page.props.otp_code));
                 }
                 if (page.props.user_id) {
-                    setUserId(page.props.user_id);
+                    setUserId(String(page.props.user_id));
                     setShowOtpModal(true);
                 }
                 // Reset password fields after successful registration
@@ -143,6 +161,30 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
             .join(' ');
     };
 
+    // Simple reCAPTCHA callback setup
+    useEffect(() => {
+        // Set up global callbacks
+        (window as any).onRecaptchaSuccess = (token: string) => {
+            console.log('reCAPTCHA verified:', token);
+            setRecaptchaToken(token);
+            setData('recaptcha_token', token);
+        };
+
+        (window as any).onRecaptchaExpired = () => {
+            console.log('reCAPTCHA expired');
+            setRecaptchaToken('');
+            setData('recaptcha_token', '');
+        };
+
+        // Mark as loaded when page mounts (reCAPTCHA will render naturally)
+        setRecaptchaLoaded(true);
+
+        return () => {
+            delete (window as any).onRecaptchaSuccess;
+            delete (window as any).onRecaptchaExpired;
+        };
+    }, [setData]);
+
     useEffect(() => {
         checkPasswordMatch();
     }, [data.password, data.password_confirmation]);
@@ -165,7 +207,9 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
 
     return (
         <div className="min-h-screen bg-gray-50 flex items-center justify-center py-4">
-            <Head title="Register" />
+            <Head title="Register">
+                <script src="https://www.google.com/recaptcha/api.js" async defer />
+            </Head>
             
             <div className="w-full max-w-6xl px-4">
                 <div className="bg-white rounded-2xl shadow-xl overflow-hidden animate-fadeInUp" style={{ minHeight: '500px' }}>
@@ -454,17 +498,42 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                                         </div>
                                     </div>
 
+                                    {/* Google reCAPTCHA v2 Checkbox */}
+                                    <div className="mb-4">
+                                        <div className="flex items-center gap-2 mb-2">
+                                            <Shield className="w-5 h-5 text-gray-600" />
+                                            <span className="text-sm text-gray-700">Security Verification</span>
+                                            {recaptchaToken && (
+                                                <CheckCircle className="w-5 h-5 text-green-600 ml-auto" />
+                                            )}
+                                        </div>
+                                        
+                                        {/* reCAPTCHA Widget - renders naturally via Google's script */}
+                                        <div 
+                                            className="g-recaptcha"
+                                            data-sitekey="6LfhidMsAAAAAPtUEzZJNLgWwFo3dGD4EKGrviXZ"
+                                            data-callback="onRecaptchaSuccess"
+                                            data-expired-callback="onRecaptchaExpired"
+                                            data-size="normal"
+                                        ></div>
+                                        
+                                        {errors.recaptcha_token && (
+                                            <InputError message={errors.recaptcha_token} />
+                                        )}
+                                    </div>
+
                                     {/* Register Button */}
                                     <Button
                                         type="submit"
                                         className="w-full fw-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg"
                                         style={{
-                                            backgroundColor: '#42A5F5',
+                                            backgroundColor: recaptchaToken ? '#42A5F5' : '#ccc',
                                             border: 'none',
                                             borderRadius: '8px',
-                                            padding: '12px'
+                                            padding: '12px',
+                                            cursor: recaptchaToken ? 'pointer' : 'not-allowed'
                                         }}
-                                        disabled={processing}
+                                        disabled={processing || !recaptchaToken}
                                     >
                                         {processing ? (
                                             <>
@@ -474,7 +543,7 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                                         ) : (
                                             <>
                                                 <UserPlus className="w-4 h-4 mr-2" />
-                                                Create Account
+                                                {recaptchaToken ? 'Create Account' : 'Complete Security Verification'}
                                             </>
                                         )}
                                     </Button>

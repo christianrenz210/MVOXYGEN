@@ -42,6 +42,7 @@ interface RentalRequest {
     purpose: string;
     contact_number: string;
     address: string;
+    delivery_address?: string;
     status: 'pending' | 'approved' | 'rejected' | 'completed';
     admin_notes?: string;
     rejected_reason?: string;
@@ -62,6 +63,7 @@ export default function RentalShow({ rentalRequest }: Props) {
         reference_number: '',
         notes: ''
     });
+    const [depositError, setDepositError] = useState('');
 
     const handleApprove = () => {
         handleOpenDepositModal();
@@ -70,6 +72,9 @@ export default function RentalShow({ rentalRequest }: Props) {
     const handleUpdateDeposit = () => {
         if (!rentalRequest.rental) {
             alert('No rental record found');
+            return;
+        }
+        if (!validateDepositAmount(depositForm.amount)) {
             return;
         }
         router.post(`/rentals/${rentalRequest.rental.id}/deposit`, {
@@ -87,6 +92,9 @@ export default function RentalShow({ rentalRequest }: Props) {
     };
 
     const handleApproveWithDeposit = () => {
+        if (!validateDepositAmount(depositForm.amount)) {
+            return;
+        }
         router.post(`/rentals/${rentalRequest.id}/approve`, {
             ...depositForm,
             deposit_amount: depositForm.amount,
@@ -120,7 +128,44 @@ export default function RentalShow({ rentalRequest }: Props) {
                 notes: ''
             });
         }
+        setDepositError('');
         setShowDepositModal(true);
+    };
+
+    const validateDepositAmount = (amount: string) => {
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount < 1000) {
+            setDepositError('Minimum deposit amount is PHP 1,000');
+            return false;
+        }
+        setDepositError('');
+        return true;
+    };
+
+    const handleDepositAmountChange = (value: string) => {
+        setDepositForm({ ...depositForm, amount: value });
+        if (value) {
+            validateDepositAmount(value);
+        } else {
+            setDepositError('');
+        }
+    };
+
+    const handleCloseDepositModal = () => {
+        const numAmount = parseFloat(depositForm.amount);
+        if (depositForm.amount !== '' && (isNaN(numAmount) || numAmount < 1000)) {
+            setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+            return;
+        }
+        setShowDepositModal(false);
+        setDepositForm({
+            amount: '',
+            payment_method: 'cash',
+            type: 'security',
+            reference_number: '',
+            notes: ''
+        });
+        setDepositError('');
     };
 
     const handleReject = () => {
@@ -223,10 +268,10 @@ export default function RentalShow({ rentalRequest }: Props) {
                                     </p>
                                 </div>
                                 <div>
-                                    <label className="text-sm font-medium text-gray-500">Address</label>
+                                    <label className="text-sm font-medium text-gray-500">Delivery Address</label>
                                     <p className="text-gray-800 flex items-center">
                                         <MapPin className="w-4 h-4 mr-2 text-gray-400" />
-                                        {rentalRequest.address}
+                                        {rentalRequest.delivery_address || rentalRequest.address}
                                     </p>
                                 </div>
                             </div>
@@ -481,15 +526,22 @@ export default function RentalShow({ rentalRequest }: Props) {
 
             {/* Deposit Modal */}
             {showDepositModal && (
-                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50" onClick={(e) => {
+                    // Prevent closing when clicking outside if deposit is invalid
+                    const numAmount = parseFloat(depositForm.amount);
+                    if (depositForm.amount !== '' && (isNaN(numAmount) || numAmount < 1000)) {
+                        e.stopPropagation();
+                        setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+                    }
+                }}>
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-xl font-bold text-gray-800 flex items-center">
                                 <DollarSign className="w-5 h-5 mr-2 text-blue-600" />
                                 Deposit Information
                             </h3>
                             <button
-                                onClick={() => setShowDepositModal(false)}
+                                onClick={handleCloseDepositModal}
                                 className="text-gray-400 hover:text-gray-600"
                             >
                                 <X className="w-5 h-5" />
@@ -497,6 +549,12 @@ export default function RentalShow({ rentalRequest }: Props) {
                         </div>
 
                         <div className="space-y-4">
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                <p className="text-sm text-yellow-800 font-medium">
+                                    Minimum deposit: PHP 1,000
+                                </p>
+                            </div>
+
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
                                 <select
@@ -528,10 +586,16 @@ export default function RentalShow({ rentalRequest }: Props) {
                                     type="number"
                                     step="0.01"
                                     value={depositForm.amount}
-                                    onChange={(e) => setDepositForm({ ...depositForm, amount: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    onChange={(e) => handleDepositAmountChange(e.target.value)}
+                                    className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                        depositError ? 'border-red-500' : 'border-gray-300'
+                                    }`}
                                     placeholder="0.00"
+                                    min="1000"
                                 />
+                                {depositError && (
+                                    <p className="text-red-500 text-sm mt-1">{depositError}</p>
+                                )}
                             </div>
 
                             <div>
@@ -568,14 +632,15 @@ export default function RentalShow({ rentalRequest }: Props) {
 
                             <div className="flex gap-3 mt-6">
                                 <button
-                                    onClick={() => setShowDepositModal(false)}
+                                    onClick={handleCloseDepositModal}
                                     className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={rentalRequest.status === 'pending' ? handleApproveWithDeposit : handleUpdateDeposit}
-                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!depositForm.amount || parseFloat(depositForm.amount) < 1000}
                                 >
                                     {rentalRequest.status === 'pending' ? 'Approve with Deposit' : 'Update Deposit'}
                                 </button>

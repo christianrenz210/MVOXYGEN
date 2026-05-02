@@ -23,7 +23,11 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
         purpose: '',
         purpose_other: '',
         contact_number: '',
-        address: '',
+        location: 'General Tinio, Nueva Ecija',
+        barangay: '',
+        street: '',
+        house_number: '',
+        landmark: '',
         pickup_type: 'delivery',
         priority: 'normal'
     });
@@ -41,10 +45,27 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Remove address if pickup type is selected
+        // Remove address fields if pickup type is selected
         const submitData: any = { ...formData };
         if (submitData.pickup_type === 'pickup') {
-            delete submitData.address;
+            delete submitData.location;
+            delete submitData.barangay;
+            delete submitData.street;
+            delete submitData.house_number;
+            delete submitData.landmark;
+        } else {
+            // Combine address fields for submission
+            const addressParts = [submitData.house_number, submitData.street, submitData.barangay, submitData.location];
+            if (submitData.landmark) {
+                addressParts.push(`(Near: ${submitData.landmark})`);
+            }
+            submitData.address = addressParts.join(', ');
+            // Remove individual fields after combining
+            delete submitData.location;
+            delete submitData.barangay;
+            delete submitData.street;
+            delete submitData.house_number;
+            delete submitData.landmark;
         }
 
         // Combine purpose and purpose_other if "Others" is selected
@@ -67,7 +88,11 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                     purpose: '',
                     purpose_other: '',
                     contact_number: '',
-                    address: '',
+                    location: 'General Tinio, Nueva Ecija',
+                    barangay: '',
+                    street: '',
+                    house_number: '',
+                    landmark: '',
                     pickup_type: 'delivery',
                     priority: 'normal'
                 });
@@ -433,25 +458,129 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                         {/* Delivery Address - Only show when delivery is selected */}
                         {formData.pickup_type === 'delivery' && (
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Your Address *
-                                </label>
-                                <div className="relative">
-                                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        value={formData.address}
-                                        onChange={(e) => handleChange('address', e.target.value)}
-                                        className={`w-full p-3 pl-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                                            errors.address ? 'border-red-500' : 'border-gray-300'
-                                        }`}
-                                        placeholder="Enter your complete delivery address"
-                                        required={formData.pickup_type === 'delivery'}
-                                    />
+                                <div className="flex items-center mb-3">
+                                    <MapPin className="w-4 h-4 text-gray-600 mr-2" />
+                                    <label className="text-sm font-medium text-gray-700">
+                                        Delivery Address *
+                                    </label>
                                 </div>
-                                {errors.address && (
-                                    <p className="mt-1 text-sm text-red-600">{errors.address}</p>
-                                )}
+                                
+                                <div className="space-y-4">
+                                    {/* Location */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            Location/Municipality *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.location}
+                                            readOnly
+                                            className={`w-full p-3 border rounded-lg bg-gray-100 text-gray-700 ${
+                                                errors.location ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                            placeholder="General Tinio, Nueva Ecija"
+                                            required={formData.pickup_type === 'delivery'}
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Fixed to General Tinio, Nueva Ecija</p>
+                                        {errors.location && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.location}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Barangay */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            Barangay *
+                                        </label>
+                                        <select
+                                            value={formData.barangay}
+                                            onChange={(e) => handleChange('barangay', e.target.value)}
+                                            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                                errors.barangay ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                            required={formData.pickup_type === 'delivery'}
+                                        >
+                                            <option value="">Select Barangay</option>
+                                            <option value="Padolina">Padolina</option>
+                                            <option value="Concepcion">Concepcion</option>
+                                            <option value="Rio Chico">Rio Chico</option>
+                                            <option value="Pias">Pias</option>
+                                            <option value="Nazareth">Nazareth</option>
+                                            <option value="San Pedro">San Pedro</option>
+                                            <option value="Poblacion West">Poblacion West</option>
+                                            <option value="Poblacion Central">Poblacion Central</option>
+                                            <option value="Sampaguita">Sampaguita</option>
+                                            <option value="Bago">Bago</option>
+                                            <option value="Poblacion East">Poblacion East</option>
+                                            <option value="Pulong Matong">Pulong Matong</option>
+                                            <option value="Palale">Palale</option>
+                                        </select>
+                                        {errors.barangay && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.barangay}</p>
+                                        )}
+                                    </div>
+
+
+                                    {/* Street */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            Street *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.street}
+                                            onChange={(e) => handleChange('street', e.target.value)}
+                                            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                                errors.street ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                            placeholder="e.g., Rizal Street"
+                                            required={formData.pickup_type === 'delivery'}
+                                        />
+                                        {errors.street && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.street}</p>
+                                        )}
+                                    </div>
+
+                                    {/* House Number */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            House Number/Block/Lot *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.house_number}
+                                            onChange={(e) => handleChange('house_number', e.target.value)}
+                                            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                                errors.house_number ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                            placeholder="e.g., Block 1 Lot 23, House No. 45"
+                                            required={formData.pickup_type === 'delivery'}
+                                        />
+                                        {errors.house_number && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.house_number}</p>
+                                        )}
+                                    </div>
+
+                                    {/* Landmark */}
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-600 mb-1">
+                                            Landmark (Optional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={formData.landmark}
+                                            onChange={(e) => handleChange('landmark', e.target.value)}
+                                            className={`w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                                errors.landmark ? 'border-red-500' : 'border-gray-300'
+                                            }`}
+                                            placeholder="e.g., Near school, beside church, in front of market"
+                                        />
+                                        {errors.landmark && (
+                                            <p className="mt-1 text-sm text-red-600">{errors.landmark}</p>
+                                        )}
+                                        <p className="text-xs text-gray-500 mt-1">Helps our delivery team find your location easily</p>
+                                    </div>
+                                </div>
                             </div>
                         )}
 

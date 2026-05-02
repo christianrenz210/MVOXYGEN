@@ -31,4 +31,9 @@ class Customer extends Model
     {
         return $this->hasMany(RentalRequest::class, 'customer_id', 'id');
     }
+
+    public function user()
+    {
+        return $this->hasOne(User::class, 'name', 'name');
+    }
 }

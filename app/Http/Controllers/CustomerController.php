@@ -55,17 +55,36 @@ class CustomerController extends Controller
      */
     public function index()
     {
-        // Fetch all customers except Admin
+        // Fetch all customers except Admin with User relationship and latest delivery address
         $customersWithRentals = Customer::where('name', '!=', 'Admin')
+            ->with(['user', 'rentalRequests' => function ($query) {
+                $query->whereNotNull('address')
+                    ->orderBy('created_at', 'desc')
+                    ->limit(1);
+            }])
             ->orderBy('created_at', 'desc')
             ->get();
 
         // Get all recent transactions (last 3 per customer)
         $allRecentTransactions = [];
         $customersWithRentals->each(function ($customer) use (&$allRecentTransactions) {
+            // Get customer's latest delivery address from rental requests
+            $latestRentalRequest = $customer->rentalRequests->first();
+            if ($latestRentalRequest && $latestRentalRequest->address) {
+                $customer->delivery_address = $latestRentalRequest->address;
+            } else {
+                $customer->delivery_address = $customer->address;
+            }
+
+            // Calculate actual total rentals based on approved rental requests
+            $approvedRentalsCount = \App\Models\RentalRequest::where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->count();
+            $customer->total_rentals = $approvedRentalsCount;
+
             $recentTransactions = $customer->transactions()
                 ->orderBy('transaction_date', 'desc')
-                ->take(3)
+                ->take(10)
                 ->get();
 
             foreach ($recentTransactions as $transaction) {

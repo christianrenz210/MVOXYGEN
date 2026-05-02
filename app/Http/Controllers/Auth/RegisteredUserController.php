@@ -36,7 +36,49 @@ class RegisteredUserController extends Controller
             'email' => 'required|string|lowercase|email|max:255|unique:'.User::class,
             'phone' => 'nullable|string|max:20',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'recaptcha_token' => 'required|string',
         ]);
+
+        // Verify reCAPTCHA token
+        $recaptchaToken = $request->input('recaptcha_token');
+        $secretKey = '6LfhidMsAAAAAH5dJ0A5T5oxI_MruAAQDV89Lv_c';
+        
+        try {
+            $response = \Illuminate\Support\Facades\Http::asForm()
+                ->timeout(10)
+                ->withOptions([
+                    'verify' => false, // Disable SSL verification for localhost development
+                    'curl' => [
+                        CURLOPT_SSL_VERIFYPEER => false,
+                        CURLOPT_SSL_VERIFYHOST => false,
+                        CURLOPT_CONNECTTIMEOUT => 10,
+                        CURLOPT_TIMEOUT => 15,
+                    ]
+                ])
+                ->post('https://www.google.com/recaptcha/api/siteverify', [
+                    'secret' => $secretKey,
+                    'response' => $recaptchaToken,
+                ]);
+
+            if (!$response->json('success')) {
+                return back()->withErrors([
+                    'recaptcha_token' => 'reCAPTCHA verification failed. Please try again.',
+                ])->withInput();
+            }
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            \Log::error('reCAPTCHA verification error: ' . $e->getMessage());
+            
+            // For development, allow the request to proceed
+            if (app()->environment('local', 'testing')) {
+                // In development, we can bypass reCAPTCHA on SSL errors
+                // Continue with registration
+            } else {
+                return back()->withErrors([
+                    'recaptcha_token' => 'Unable to verify reCAPTCHA. Please try again later.',
+                ])->withInput();
+            }
+        }
 
         $user = User::create([
             'name' => $request->name,

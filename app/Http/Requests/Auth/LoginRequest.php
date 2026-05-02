@@ -29,6 +29,45 @@ class LoginRequest extends FormRequest
         return [
             'email' => ['required', 'string', 'email'],
             'password' => ['required', 'string'],
+            'recaptcha_token' => ['required', 'string', function ($attribute, $value, $fail) {
+                // Temporarily bypass reCAPTCHA verification for development
+                if (app()->environment('local', 'testing')) {
+                    // In development, skip reCAPTCHA verification entirely
+                    return;
+                }
+
+                if (!$value) {
+                    $fail('Please complete the reCAPTCHA verification.');
+                    return;
+                }
+
+                try {
+                    $response = \Http::timeout(10)
+                        ->withOptions([
+                            'verify' => false, // Disable SSL verification for localhost development
+                            'curl' => [
+                                CURLOPT_SSL_VERIFYPEER => false,
+                                CURLOPT_SSL_VERIFYHOST => false,
+                                CURLOPT_CONNECTTIMEOUT => 10,
+                                CURLOPT_TIMEOUT => 15,
+                            ]
+                        ])
+                        ->post('https://www.google.com/recaptcha/api/siteverify', [
+                            'secret' => '6LfhidMsAAAAAH5dJ0A5T5oxI_MruAAQDV89Lv_c',
+                            'response' => $value,
+                            'remoteip' => request()->ip(),
+                        ]);
+
+                    if (!$response->json()['success']) {
+                        $fail('reCAPTCHA verification failed. Please try again.');
+                    }
+                } catch (\Exception $e) {
+                    // Log the error for debugging
+                    \Log::error('reCAPTCHA verification error: ' . $e->getMessage());
+                    
+                    $fail('Unable to verify reCAPTCHA. Please try again later.');
+                }
+            }],
         ];
     }
 

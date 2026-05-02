@@ -1,16 +1,32 @@
 import { Head, useForm } from '@inertiajs/react';
 import { LoaderCircle, Eye, EyeOff, ArrowLeft, AlertCircle, XCircle } from 'lucide-react';
-import { FormEventHandler, useState } from 'react';
+import { FormEventHandler, useState, useEffect } from 'react';
 
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// TypeScript declaration for Google reCAPTCHA
+declare global {
+    interface Window {
+        grecaptcha: {
+            render: (container: string, options: {
+                sitekey: string;
+                callback?: (token: string) => void;
+                'expired-callback'?: () => void;
+                'error-callback'?: () => void;
+            }) => void;
+            reset: () => void;
+        };
+    }
+}
+
 interface LoginForm {
     email: string;
     password: string;
     remember: boolean;
+    recaptcha_token?: string;
     [key: string]: string | number | boolean | Blob | File | null | undefined;
 }
 
@@ -28,13 +44,122 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
     });
 
     const [showPassword, setShowPassword] = useState(false);
+    const [recaptchaToken, setRecaptchaToken] = useState<string>('');
+    const [isRecaptchaLoaded, setIsRecaptchaLoaded] = useState(false);
+    const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null);
+
+    // Load reCAPTCHA script
+    useEffect(() => {
+        const loadRecaptcha = () => {
+            if (window.grecaptcha) {
+                setIsRecaptchaLoaded(true);
+                return;
+            }
+
+            const script = document.createElement('script');
+            script.src = 'https://www.google.com/recaptcha/api.js?render=explicit';
+            script.async = true;
+            script.defer = true;
+            
+            script.onload = () => {
+                setTimeout(() => {
+                    if (window.grecaptcha) {
+                        setIsRecaptchaLoaded(true);
+                    }
+                }, 100);
+            };
+
+            script.onerror = () => {
+                console.error('Failed to load reCAPTCHA script');
+            };
+
+            document.head.appendChild(script);
+        };
+
+        loadRecaptcha();
+
+        return () => {
+            // Cleanup reCAPTCHA widget
+            if (recaptchaWidgetId !== null && window.grecaptcha) {
+                try {
+                    window.grecaptcha.reset(recaptchaWidgetId);
+                } catch (error) {
+                    console.log('reCAPTCHA cleanup error:', error);
+                }
+            }
+            
+            const existingScript = document.querySelector('script[src*="recaptcha"]');
+            if (existingScript) {
+                document.head.removeChild(existingScript);
+            }
+        };
+    }, []);
+
+    const renderRecaptcha = () => {
+        if (!window.grecaptcha || !document.getElementById('recaptcha-login')) {
+            return;
+        }
+
+        try {
+            const widgetId = window.grecaptcha.render('recaptcha-login', {
+                sitekey: '6LfhidMsAAAAAPtUEzZJNLgWwFo3dGD4EKGrviXZ',
+                callback: (token: string) => {
+                    setRecaptchaToken(token);
+                    setData('recaptcha_token', token);
+                },
+                'expired-callback': () => {
+                    setRecaptchaToken('');
+                    setData('recaptcha_token', '');
+                },
+                'error-callback': () => {
+                    setRecaptchaToken('');
+                    setData('recaptcha_token', '');
+                }
+            });
+            
+            setRecaptchaWidgetId(widgetId);
+        } catch (error) {
+            console.error('Error rendering reCAPTCHA:', error);
+        }
+    };
+
+    useEffect(() => {
+        if (isRecaptchaLoaded) {
+            // Add a small delay to ensure DOM is ready
+            setTimeout(() => {
+                if (document.getElementById('recaptcha-login')) {
+                    renderRecaptcha();
+                }
+            }, 100);
+        }
+    }, [isRecaptchaLoaded]);
 
     const submit: FormEventHandler = (e) => {
         e.preventDefault();
+        
+        // Temporarily bypass reCAPTCHA validation for development
+        if (!recaptchaToken && !import.meta.env.DEV) {
+            alert('Please complete the reCAPTCHA verification.');
+            return;
+        }
+        
         post(route('login'), {
-            onFinish: () => reset('password'),
+            onFinish: () => {
+                reset('password');
+                // Reset reCAPTCHA after successful login attempt
+                if (recaptchaWidgetId !== null && window.grecaptcha) {
+                    window.grecaptcha.reset(recaptchaWidgetId);
+                }
+                setRecaptchaToken('');
+                setData('recaptcha_token', '');
+            },
             onError: (errors) => {
-                // Errors will be automatically displayed by useForm
+                // Reset reCAPTCHA on error
+                if (recaptchaWidgetId !== null && window.grecaptcha) {
+                    window.grecaptcha.reset(recaptchaWidgetId);
+                }
+                setRecaptchaToken('');
+                setData('recaptcha_token', '');
                 console.error('Login failed:', errors);
             },
         });
@@ -207,17 +332,25 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
                                         )}
                                     </div>
 
+                                    {/* reCAPTCHA */}
+                                    <div className="mb-4">
+                                        <div id="recaptcha-login" className="flex justify-center"></div>
+                                        {errors.recaptcha_token && (
+                                            <InputError message={errors.recaptcha_token} />
+                                        )}
+                                    </div>
+
                                     {/* Login Button */}
                                     <Button
                                         type="submit"
                                         className="w-full font-semibold text-white transition-all duration-300 hover:scale-105 hover:shadow-lg"
                                         style={{
-                                            backgroundColor: '#42A5F5',
+                                            backgroundColor: (recaptchaToken || import.meta.env.DEV) ? '#42A5F5' : '#9CA3AF',
                                             border: 'none',
                                             borderRadius: '8px',
                                             padding: '12px'
                                         }}
-                                        disabled={processing}
+                                        disabled={processing || (!recaptchaToken && !import.meta.env.DEV)}
                                     >
                                         {processing && <LoaderCircle className="w-4 h-4 mr-2 animate-spin" />}
                                         Login

@@ -52,6 +52,14 @@ export default function RentalIndex({ rentalRequests }: Props) {
     const [activeFilter, setActiveFilter] = useState<StatusFilter>('all');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    
+    // Deposit modal state
+    const [showDepositModal, setShowDepositModal] = useState(false);
+    const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
+    const [depositAmount, setDepositAmount] = useState('');
+    const [depositError, setDepositError] = useState('');
+    const [depositPaymentMethod, setDepositPaymentMethod] = useState('cash');
+    const [depositReferenceNumber, setDepositReferenceNumber] = useState('');
 
     // Reset page when filter changes
     const handleFilterChange = (filter: StatusFilter) => {
@@ -69,13 +77,80 @@ export default function RentalIndex({ rentalRequests }: Props) {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const paginatedRequests = filteredRequests.slice(startIndex, startIndex + itemsPerPage);
     const handleApprove = (id: number) => {
-        if (confirm('Are you sure you want to approve this rental request?')) {
-            router.post(`/rentals/${id}/approve`, {}, {
-                onSuccess: () => {
-                    alert('Rental request approved successfully!');
-                }
-            });
+        setSelectedRequest(id);
+        setDepositAmount('');
+        setDepositError('');
+        setDepositPaymentMethod('cash');
+        setDepositReferenceNumber('');
+        setShowDepositModal(true);
+    };
+
+    const validateDepositAmount = (amount: string) => {
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount < 1000) {
+            setDepositError('Minimum deposit amount is PHP 1,000');
+            return false;
         }
+        setDepositError('');
+        return true;
+    };
+
+    const handleDepositAmountChange = (value: string) => {
+        setDepositAmount(value);
+        if (value) {
+            validateDepositAmount(value);
+        } else {
+            setDepositError('');
+        }
+    };
+
+    const handleConfirmApproval = () => {
+        if (!validateDepositAmount(depositAmount)) {
+            return;
+        }
+
+        const formData = {
+            deposit_amount: parseFloat(depositAmount),
+            deposit_payment_method: depositPaymentMethod,
+            deposit_reference_number: depositReferenceNumber
+        };
+
+        router.post(`/rentals/${selectedRequest}/approve`, formData, {
+            onSuccess: () => {
+                setShowDepositModal(false);
+                setSelectedRequest(null);
+                setDepositAmount('');
+                setDepositError('');
+                alert('Rental request approved successfully!');
+            },
+            onError: (errors: any) => {
+                if (errors.deposit_amount) {
+                    setDepositError(errors.deposit_amount[0]);
+                }
+            }
+        });
+    };
+
+    const handleCloseModal = () => {
+        const numAmount = parseFloat(depositAmount);
+        console.log('Attempting to close modal. Deposit amount:', depositAmount, 'Parsed:', numAmount);
+        
+        // Always validate if there's any deposit amount entered
+        if (depositAmount !== '') {
+            if (isNaN(numAmount) || numAmount < 1000) {
+                // Don't close modal if deposit amount is below minimum
+                setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+                console.log('Modal close blocked - invalid deposit amount');
+                return;
+            }
+        }
+        
+        setShowDepositModal(false);
+        setSelectedRequest(null);
+        setDepositAmount('');
+        setDepositError('');
+        setDepositReferenceNumber('');
+        console.log('Modal closed successfully');
     };
 
     const handleReject = (id: number) => {
@@ -394,7 +469,14 @@ export default function RentalIndex({ rentalRequests }: Props) {
                 {/* Deposit Information Table */}
                 {rentalRequests.some(r => r.rental) && (
                     <div className="bg-white rounded-xl shadow-lg p-6 mt-6">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">Deposit Information</h2>
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-800">Deposit Information</h2>
+                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
+                                <p className="text-xs text-yellow-800 font-medium">
+                                    Minimum deposit: PHP 1,000
+                                </p>
+                            </div>
+                        </div>
 
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
@@ -413,10 +495,20 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                                 {request.rental?.deposit_type || 'Security Deposit'}
                                             </td>
                                             <td className="py-3 px-4 text-gray-800">
-                                                {request.rental?.deposit_amount !== null && request.rental?.deposit_amount !== undefined ?
-                                                    `PHP ${request.rental.deposit_amount.toFixed(2)}` :
-                                                    'PHP 0.00'
-                                                }
+                                                {request.rental?.deposit_amount !== null && request.rental?.deposit_amount !== undefined ? (
+                                                    <div>
+                                                        <span className={request.rental.deposit_amount < 1000 ? "text-red-600 font-semibold" : ""}>
+                                                            PHP {request.rental.deposit_amount.toFixed(2)}
+                                                        </span>
+                                                        {request.rental.deposit_amount < 1000 && (
+                                                            <div className="text-xs text-red-500 mt-1">
+                                                                Below minimum (PHP 1,000)
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-red-600 font-semibold">PHP 0.00</span>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4 text-gray-800">
                                                 {request.rental?.deposit_payment_date ?
@@ -452,6 +544,101 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                     <p>No deposit information found.</p>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Deposit Modal */}
+                {showDepositModal && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={(e) => {
+                        // Prevent closing when clicking outside if deposit is invalid
+                        const numAmount = parseFloat(depositAmount);
+                        if (depositAmount !== '' && (isNaN(numAmount) || numAmount < 1000)) {
+                            e.stopPropagation();
+                            setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+                        }
+                    }}>
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-xl font-bold text-gray-800">Deposit Information</h3>
+                                <button
+                                    onClick={handleCloseModal}
+                                    className="text-gray-400 hover:text-gray-600"
+                                >
+                                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <div className="mb-4">
+                                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                                    <p className="text-sm text-yellow-800 font-medium">
+                                        Minimum deposit: PHP 1,000
+                                    </p>
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Amount (PHP)</label>
+                                    <input
+                                        type="number"
+                                        value={depositAmount}
+                                        onChange={(e) => handleDepositAmountChange(e.target.value)}
+                                        className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                            depositError ? 'border-red-500' : 'border-gray-300'
+                                        }`}
+                                        placeholder="Enter deposit amount"
+                                        min="1000"
+                                        step="0.01"
+                                    />
+                                    {depositError && (
+                                        <p className="text-red-500 text-sm mt-1">{depositError}</p>
+                                    )}
+                                </div>
+
+                                <div className="mb-4">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                                    <select
+                                        value={depositPaymentMethod}
+                                        onChange={(e) => setDepositPaymentMethod(e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    >
+                                        <option value="cash">Cash</option>
+                                        <option value="bank_transfer">Bank Transfer</option>
+                                        <option value="gcash">GCash</option>
+                                        <option value="maya">Maya</option>
+                                    </select>
+                                </div>
+
+                                {(depositPaymentMethod === 'bank_transfer' || depositPaymentMethod === 'gcash' || depositPaymentMethod === 'maya') && (
+                                    <div className="mb-4">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Reference Number</label>
+                                        <input
+                                            type="text"
+                                            value={depositReferenceNumber}
+                                            onChange={(e) => setDepositReferenceNumber(e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Enter reference number"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleCloseModal}
+                                    className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={handleConfirmApproval}
+                                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled={!depositAmount || parseFloat(depositAmount) < 1000}
+                                >
+                                    Approve with Deposit
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
