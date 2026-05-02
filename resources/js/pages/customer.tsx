@@ -57,6 +57,7 @@ interface Customer {
     created_at: string;
     updated_at?: string;
     recent_transactions?: Transaction[];
+    profile_image?: string;
     user?: {
         id: number;
         name: string;
@@ -299,6 +300,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead>Profile</TableHead>
                                         <TableHead>Customer</TableHead>
                                         <TableHead>Contact</TableHead>
                                         <TableHead>Address</TableHead>
@@ -311,6 +313,26 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                 <TableBody>
                                     {currentCustomers.map((customer) => (
                                         <TableRow key={customer.id} className="hover:bg-muted/50">
+                                            <TableCell>
+                                                <div className="flex items-center">
+                                                    {customer.user?.profile_image ? (
+                                                        <img 
+                                                            src={customer.user.profile_image} 
+                                                            alt={customer.name}
+                                                            className="w-10 h-10 rounded-full object-cover"
+                                                            onError={(e) => {
+                                                                e.currentTarget.src = '/placeholder-avatar.png';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                                            <span className="text-gray-500 text-sm font-medium">
+                                                                {customer.name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell>
                                                 <div>
                                                     <div className="font-medium">{customer.name}</div>

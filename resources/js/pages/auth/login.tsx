@@ -6,6 +6,7 @@ import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import ForgotPasswordModal from '@/components/forgot-password-modal';
 
 // TypeScript declaration for Google reCAPTCHA
 declare global {
@@ -47,6 +48,7 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
     const [recaptchaToken, setRecaptchaToken] = useState<string>('');
     const [isRecaptchaLoaded, setIsRecaptchaLoaded] = useState(false);
     const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null);
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
 
     // Load reCAPTCHA script
     useEffect(() => {
@@ -323,12 +325,13 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
                                             </label>
                                         </div>
                                         {canResetPassword && (
-                                            <a 
-                                                href={route('password.request')} 
-                                                className="text-sm text-blue-600 hover:text-blue-700"
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowForgotPassword(true)}
+                                                className="text-sm text-blue-600 hover:text-blue-700 hover:underline"
                                             >
                                                 Forgot Password?
-                                            </a>
+                                            </button>
                                         )}
                                     </div>
 
@@ -368,6 +371,12 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
                     </div>
                 </div>
             </div>
+        
+        {/* Forgot Password Modal */}
+        <ForgotPasswordModal 
+            open={showForgotPassword}
+            onOpenChange={setShowForgotPassword}
+        />
         </div>
     );
 }

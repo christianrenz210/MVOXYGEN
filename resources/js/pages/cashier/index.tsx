@@ -44,8 +44,8 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
 
     // Listen for flash messages from Inertia shared props
     const page = usePage();
-    const flashSuccess = page.props.flash?.success as string | undefined;
-    const flashError = page.props.flash?.error as string | undefined;
+    const flashSuccess = (page.props as any).flash?.success as string | undefined;
+    const flashError = (page.props as any).flash?.error as string | undefined;
 
     useEffect(() => {
         if (flashSuccess) {

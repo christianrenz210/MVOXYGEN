@@ -57,6 +57,7 @@ class CustomerController extends Controller
     {
         // Fetch all customers except Admin with User relationship and latest delivery address
         $customersWithRentals = Customer::where('name', '!=', 'Admin')
+            ->select('id', 'name', 'contact_number', 'address', 'status', 'total_rentals', 'created_at', 'updated_at', 'profile_image')
             ->with(['user', 'rentalRequests' => function ($query) {
                 $query->whereNotNull('address')
                     ->orderBy('created_at', 'desc')

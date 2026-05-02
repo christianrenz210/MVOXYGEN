@@ -15,6 +15,7 @@ class Customer extends Model
         'status',
         'total_rentals',
         'join_date',
+        'profile_image',
     ];
 
     protected $casts = [
