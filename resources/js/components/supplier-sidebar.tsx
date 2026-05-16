@@ -25,7 +25,7 @@ const supplierNavItems: NavItem[] = [
     },
     {
         title: 'Settings',
-        url: '/user/settings',
+        url: '/supplier/settings',
         icon: Settings,
     }
 ];

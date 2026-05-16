@@ -61,11 +61,28 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
                         margin: 0;
                         padding: 0;
                         font-family: 'Courier New', monospace;
+                        background: white;
+                        text-align: center; /* Fallback for older browsers */
+                    }
+                    /* Ensure the receipt wrapper itself is centered */
+                    .receipt-wrapper {
+                        margin: 0 auto;
+                        text-align: left; /* Reset text alignment for inner content */
+                        display: inline-block; /* Helps with text-align center on body */
                     }
                     @media print {
-                        body {
+                        @page {
+                            size: A4; /* Force A4 paper size */
+                            margin: 0; /* Remove default page margins */
+                        }
+                        html, body {
+                            height: 100vh; /* Full page height */
+                            width: 100%;
                             margin: 0;
-                            padding: 10px;
+                            padding: 0;
+                            display: flex;
+                            justify-content: center; /* Horizontal Center */
+                            align-items: center; /* Vertical Center */
                         }
                     }
                 </style>
@@ -119,16 +136,26 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
 
         const formatDate = () => {
             const now = saleData.created_at ? new Date(saleData.created_at) : new Date();
-            return now.toLocaleDateString('en-PH') + ' ' + now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+            // Use Manila timezone (Asia/Manila)
+            const options: Intl.DateTimeFormatOptions = {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            return now.toLocaleString('en-PH', options);
         };
 
         return `
-            <div style="font-family: 'Courier New', monospace; padding: 10px; max-width: 300px; margin: 0 auto; font-size: 11px; line-height: 1.4;">
+            <div class="receipt-wrapper" style="font-family: 'Courier New', monospace; padding: 10px; max-width: 300px; font-size: 11px; line-height: 1.4;">
                 <!-- Shop Header -->
                 <div style="text-align: center; margin-bottom: 8px;">
                     <div style="font-size: 16px; font-weight: bold; letter-spacing: 2px;">MV OXYGEN</div>
                     <div style="font-size: 10px;">Gas Cylinder Sales & Services</div>
-                    <div style="font-size: 9px; margin-top: 2px;">Tel: (02) 8-XXX-XXXX</div>
+                    <div style="font-size: 9px; margin-top: 2px;">Contact No: 0977-330-5640</div>
                 </div>
 
                 <div style="text-align: center; margin: 8px 0;">***************************************</div>
@@ -248,6 +275,21 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
         }).format(amount);
     };
 
+    const formatDate = (dateString: string) => {
+        const date = dateString ? new Date(dateString) : new Date();
+        // Use Manila timezone (Asia/Manila)
+        const options: Intl.DateTimeFormatOptions = {
+            timeZone: 'Asia/Manila',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        };
+        return date.toLocaleString('en-PH', options);
+    };
+
     const subtotal = saleData.items.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
     const total = saleData.total_amount;
 
@@ -270,7 +312,7 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
                         <div className="text-center mb-2">
                             <div className="font-bold text-sm tracking-wider">MV OXYGEN</div>
                             <div className="text-[10px]">Gas Cylinder Sales & Services</div>
-                            <div className="text-[9px] mt-0.5">Tel: (02) 8-XXX-XXXX</div>
+                            <div className="text-[9px] mt-0.5">Contact No: 0977-330-5640</div>
                         </div>
 
                         <div className="text-center my-2">***************************************</div>
@@ -290,9 +332,7 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
                             </div>
                             <div className="flex justify-between">
                                 <span>Date:</span>
-                                <span>{saleData.created_at 
-                                    ? new Date(saleData.created_at).toLocaleDateString('en-PH') + ' ' + new Date(saleData.created_at).toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })
-                                    : new Date().toLocaleDateString('en-PH') + ' ' + new Date().toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' })}</span>
+                                <span>{formatDate(saleData.created_at || new Date().toISOString())}</span>
                             </div>
                             <div className="flex justify-between">
                                 <span>Cashier:</span>

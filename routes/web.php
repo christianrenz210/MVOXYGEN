@@ -17,6 +17,7 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\SupplierOrderController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\OtpController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -29,6 +30,11 @@ Route::get('/faq', function () {
 Route::get('/contact', function () {
     return Inertia::render('contact');
 })->name('contact');
+
+// OTP Routes (accessible without authentication)
+Route::post('send-otp', [OtpController::class, 'sendOtp'])->name('otp.send');
+Route::post('verify-otp', [OtpController::class, 'verifyOtp'])->name('otp.verify');
+Route::post('resend-otp', [OtpController::class, 'resendOtp'])->name('otp.resend');
 
 Route::middleware(['auth'])->group(function () {
     // Search Route
@@ -220,9 +226,14 @@ Route::middleware(['auth'])->group(function () {
     Route::put('customer/{id}', [CustomerController::class, 'update'])->name('customer.update');
     Route::post('customer/{id}/archive', [CustomerController::class, 'archive'])->name('customer.archive');
     Route::post('customer/{id}/restore', [CustomerController::class, 'restore'])->name('customer.restore');
+    Route::delete('customer/{id}', [CustomerController::class, 'destroy'])->name('customer.destroy');
     
     // Cashier Routes
     Route::get('cashier', [CashierController::class, 'index'])->name('cashier.index');
+    Route::get('cashier/end-shift', function() {
+        return redirect()->route('cashier.index');
+    })->name('cashier.end-shift.redirect');
+    Route::post('cashier/start-shift', [CashierController::class, 'startShift'])->name('cashier.start-shift');
     Route::post('cashier/process', [CashierController::class, 'processSale'])->name('cashier.process');
     Route::post('cashier/end-shift', [CashierController::class, 'endShift'])->name('cashier.end-shift');
     
@@ -305,6 +316,10 @@ Route::middleware(['auth'])->group(function () {
     Route::post('supplier/products', [SupplierOrderController::class, 'storeProduct'])->name('supplier.products.store');
     Route::put('supplier/products/{product}', [SupplierOrderController::class, 'updateProduct'])->name('supplier.products.update');
     Route::delete('supplier/products/{product}', [SupplierOrderController::class, 'destroyProduct'])->name('supplier.products.destroy');
+
+    // Supplier Settings Routes
+    Route::get('supplier/settings', [SupplierOrderController::class, 'settings'])->name('supplier.settings');
+    Route::post('supplier/settings/profile', [SupplierOrderController::class, 'updateProfile'])->name('supplier.settings.profile');
 
     // Rental Routes (Approve, Reject, etc.)
     Route::post('rentals/{rentalRequest}/approve', [RentalController::class, 'approve'])->name('rentals.approve');

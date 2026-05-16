@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { Search, ShoppingCart, Plus, Minus, Trash2, DollarSign, Receipt, ChevronLeft, Package, QrCode, FileText, Printer } from 'lucide-react';
+import { Search, ShoppingCart, Plus, Minus, Trash2, DollarSign, Receipt, ChevronLeft, Package, QrCode, FileText, Printer, Play } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import ReceiptPrint from '@/components/receipt-print';
 import AlertModal from '@/components/alert-modal';
@@ -370,6 +370,18 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
         });
     };
 
+    const handleStartShift = () => {
+        router.post('/cashier/start-shift', {}, {
+            onSuccess: () => {
+                showAlert('Success', 'Shift started successfully!', 'success');
+                // The page will reload and show the updated shift status
+            },
+            onError: (errors) => {
+                showAlert('Error', 'Error starting shift: ' + JSON.stringify(errors), 'error');
+            }
+        });
+    };
+
     const handleEndShift = () => {
         router.post('/cashier/end-shift', {}, {
             onSuccess: (page) => {
@@ -475,7 +487,17 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
 
         const formatDate = (dateString: string) => {
             const date = new Date(dateString);
-            return date.toLocaleDateString('en-PH') + ' ' + date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+            // Use Manila timezone (Asia/Manila)
+            const options: Intl.DateTimeFormatOptions = {
+                timeZone: 'Asia/Manila',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            return date.toLocaleString('en-PH', options);
         };
 
         // Calculate item summary
@@ -496,7 +518,7 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                 <div style="text-align: center; margin-bottom: 8px;">
                     <div style="font-size: 16px; font-weight: bold; letter-spacing: 2px;">MV OXYGEN</div>
                     <div style="font-size: 10px;">Gas Cylinder Sales & Services</div>
-                    <div style="font-size: 9px; margin-top: 2px;">Tel: (02) 8-XXX-XXXX</div>
+                    <div style="font-size: 9px; margin-top: 2px;">Contact No: 0977-330-5640</div>
                 </div>
 
                 <div style="text-align: center; margin: 8px 0;">***************************************</div>
@@ -515,8 +537,8 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                         <span>${reportData.cashier_name}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
-                        <span>Date:</span>
-                        <span>${formatDate(reportData.shift_date)}</span>
+                        <span>Shift Start:</span>
+                        <span>${formatDate(reportData.shift_start_time)}</span>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span>Shift End:</span>
@@ -669,37 +691,59 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
             <Head title="Cashier" />
             
             <div className="flex-1 space-y-4 p-8">
-                <div className="flex items-center justify-between space-y-2">
-                    <h2 className="text-3xl font-bold tracking-tight">Cashier</h2>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Cashier POS</h1>
+                        <p className="text-sm text-gray-600">
+                            {(page.props as any).shiftActive ? 'Process sales and manage transactions' : 'Start your shift to begin processing sales'}
+                        </p>
+                    </div>
                     <div className="flex items-center space-x-2">
-                        <Button
-                            onClick={handleEndShift}
-                            variant="outline"
-                            size="sm"
-                            className="flex items-center gap-2 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
-                        >
-                            <FileText className="w-4 h-4" />
-                            End Shift
-                        </Button>
-                        
-                        <Badge variant="outline" className="text-sm">
-                            {getTotalItems()} items
-                        </Badge>
-                        <Badge variant="outline" className="text-sm">
-                            ₱{getTotalAmount().toFixed(2)}
-                        </Badge>
+                        {!(page.props as any).shiftActive ? (
+                            <Button
+                                onClick={handleStartShift}
+                                size="sm"
+                                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white"
+                            >
+                                <Play className="w-4 h-4" />
+                                Start Shift
+                            </Button>
+                        ) : (
+                            <>
+                                <Button
+                                    onClick={handleEndShift}
+                                    size="sm"
+                                    className="flex items-center gap-2 bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                    End Shift
+                                </Button>
+                                
+                                <Badge variant="outline" className="text-sm">
+                                    {getTotalItems()} items
+                                </Badge>
+                                <Badge variant="outline" className="text-sm">
+                                    ₱{getTotalAmount().toFixed(2)}
+                                </Badge>
+                            </>
+                        )}
                     </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
                     {/* Available Tanks */}
                     <div className="md:col-span-2">
-                        <Card>
+                        <Card className={(page.props as any).shiftActive ? '' : 'opacity-50 pointer-events-none'}>
                             <CardHeader>
                                 <div className="flex flex-col gap-3">
                                     <CardTitle className="flex items-center gap-2">
                                         <Package className="h-5 w-5" />
                                         Available Tanks
+                                        {!(page.props as any).shiftActive && (
+                                            <Badge variant="outline" className="text-xs text-red-600">
+                                                Shift Not Started
+                                            </Badge>
+                                        )}
                                     </CardTitle>
                                     {/* Search Tanks */}
                                     <div className="relative">
@@ -843,7 +887,6 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="cash">Cash</SelectItem>
-                                            <SelectItem value="card">Card</SelectItem>
                                             <SelectItem value="gcash">GCash</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -940,7 +983,7 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                             <CardHeader>
                                 <CardTitle className="flex items-center justify-between">
                                     <span className="flex items-center gap-2">
-                                        <DollarSign className="h-5 w-5" />
+                                        <span className="font-bold">₱</span>
                                         Cart
                                     </span>
                                     <Badge variant="outline">{getTotalItems()} items</Badge>
@@ -1118,22 +1161,30 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                                     <label className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded">GCash Reference Number *</label>
                                     <Input
                                         type="text"
-                                        placeholder="Enter GCash reference number from customer's app"
+                                        maxLength={13}
+                                        placeholder="13-digit reference number"
                                         value={gcashReferenceNumber}
-                                        onChange={(e) => setGcashReferenceNumber(e.target.value)}
-                                        className="mt-1 border-red-300 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                                        onChange={(e) => setGcashReferenceNumber(e.target.value.replace(/\D/g, ''))}
+                                        className={`mt-1 bg-red-50 ${gcashReferenceNumber && !/^\d{13}$/.test(gcashReferenceNumber) ? 'border-red-500 ring-1 ring-red-500' : 'border-red-300 focus:border-red-500 focus:ring-red-500'}`}
                                     />
+                                    {gcashReferenceNumber && !/^\d{13}$/.test(gcashReferenceNumber) && (
+                                        <p className="text-xs text-red-600 mt-1 font-medium">Must be exactly 13 digits</p>
+                                    )}
                                 </div>
 
                                 <div>
                                     <label className="text-xs font-semibold text-red-700 bg-red-50 px-2 py-1 rounded">Customer Phone Number *</label>
                                     <Input
                                         type="text"
-                                        placeholder="Enter customer's GCash phone number"
+                                        maxLength={11}
+                                        placeholder="09XXXXXXXXX"
                                         value={customerPhoneNumber}
-                                        onChange={(e) => setCustomerPhoneNumber(e.target.value)}
-                                        className="mt-1 border-red-300 focus:border-red-500 focus:ring-red-500 bg-red-50"
+                                        onChange={(e) => setCustomerPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                                        className={`mt-1 bg-red-50 ${customerPhoneNumber && !/^09\d{9}$/.test(customerPhoneNumber) ? 'border-red-500 ring-1 ring-red-500' : 'border-red-300 focus:border-red-500 focus:ring-red-500'}`}
                                     />
+                                    {customerPhoneNumber && !/^09\d{9}$/.test(customerPhoneNumber) && (
+                                        <p className="text-xs text-red-600 mt-1 font-medium">Must be 11 digits starting with 09</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1196,8 +1247,8 @@ export default function CashierIndex({ tanks }: { tanks: Tank[] }) {
                                 }}
                                 disabled={
                                     !gcashPaymentConfirmed || 
-                                    !gcashReferenceNumber.trim() || 
-                                    !customerPhoneNumber.trim() || 
+                                    !/^\d{13}$/.test(gcashReferenceNumber) || 
+                                    !/^09\d{9}$/.test(customerPhoneNumber) || 
                                     !paymentTimestamp.trim()
                                 }
                                 className="bg-green-600 hover:bg-green-700"

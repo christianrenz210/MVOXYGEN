@@ -68,9 +68,9 @@
             <h1>Email Verification</h1>
         </div>
 
-        <p>Hello {{ $user->name }},</p>
+        <p>Hello {{ $user->name ?? 'Customer' }},</p>
 
-        <p>Thank you for registering with MV Oxygen Trading! To complete your registration and verify your email address, please use the following One-Time Password (OTP) code:</p>
+        <p>Thank you for signing up with MV Oxygen Trading! To complete your registration and verify your email address, please use the following One-Time Password (OTP) code:</p>
 
         <div class="otp-code">{{ $otp }}</div>
 

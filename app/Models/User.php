@@ -32,7 +32,10 @@ class User extends Authenticatable
         'phone',
         'role',
         'profile_image',
+        'avatar',
         'status',
+        'is_active',
+        'customer_id',
     ];
 
     /**
@@ -95,6 +98,14 @@ class User extends Authenticatable
     public function supplier()
     {
         return $this->hasOne(Supplier::class, 'user_id');
+    }
+
+    /**
+     * Get the customer profile for the user.
+     */
+    public function customer()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id');
     }
 
     /**

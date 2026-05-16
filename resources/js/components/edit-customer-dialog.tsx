@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Edit } from 'lucide-react';
 import { useForm } from '@inertiajs/react';
-import { sanitizePhoneDigits } from '@/utils/phone';
+import { formatPhoneNumber, stripCountryCode, sanitizePhoneDigits } from '@/utils/phone';
 
 interface Customer {
     id: number;
@@ -58,7 +58,7 @@ export default function EditCustomerDialog({ customer, onSuccess }: EditCustomer
 
     const handleContactNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const digits = sanitizePhoneDigits(e.target.value);
-        setData('contact_number', digits);
+        setData('contact_number', formatPhoneNumber(digits));
         setContactWarning(digits ? validateContactNumber(digits) : '');
     };
 
@@ -133,17 +133,26 @@ export default function EditCustomerDialog({ customer, onSuccess }: EditCustomer
                         </div>
                         <div className="grid gap-2">
                             <Label htmlFor="contact_number">Contact Number</Label>
-                            <Input
-                                id="contact_number"
-                                type="tel"
-                                inputMode="numeric"
-                                maxLength={11}
-                                value={data.contact_number}
-                                onChange={handleContactNumberChange}
-                                placeholder="9XXXXXXXXXX"
-                                className={contactWarning ? 'border-orange-500 focus:border-orange-500' : ''}
-                                required
-                            />
+                            <div className="flex items-center gap-2">
+                                <span className="text-gray-600 text-sm font-medium">+63</span>
+                                <Input
+                                    id="contact_number"
+                                    type="tel"
+                                    inputMode="numeric"
+                                    maxLength={11}
+                                    className={`w-full transition-all duration-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                        contactWarning ? 'border-orange-500 focus:border-orange-500' : ''
+                                    }`}
+                                    style={{
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd'
+                                    }}
+                                    value={stripCountryCode(data.contact_number || '')}
+                                    onChange={handleContactNumberChange}
+                                    placeholder="9XXXXXXXXX"
+                                    required
+                                />
+                            </div>
                             {contactWarning && (
                                 <p className="text-sm text-orange-600 flex items-center gap-1">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

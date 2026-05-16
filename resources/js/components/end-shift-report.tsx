@@ -4,6 +4,7 @@ interface EndShiftReportProps {
     reportData: {
         cashier_name: string;
         shift_date: string;
+        shift_start_time: string;
         shift_end_time: string;
         total_sales: number;
         total_revenue: number;
@@ -36,7 +37,17 @@ const EndShiftReport: React.FC<EndShiftReportProps> = ({ reportData }) => {
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
-        return date.toLocaleDateString('en-PH') + ' ' + date.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+        // Use Manila timezone (Asia/Manila)
+        const options: Intl.DateTimeFormatOptions = {
+            timeZone: 'Asia/Manila',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        };
+        return date.toLocaleString('en-PH', options);
     };
 
     // Calculate item summary
@@ -57,7 +68,7 @@ const EndShiftReport: React.FC<EndShiftReportProps> = ({ reportData }) => {
             <div style={{ textAlign: 'center', marginBottom: '8px' }}>
                 <div style={{ fontSize: '16px', fontWeight: 'bold', letterSpacing: '2px' }}>MV OXYGEN</div>
                 <div style={{ fontSize: '10px' }}>Gas Cylinder Sales & Services</div>
-                <div style={{ fontSize: '9px', marginTop: '2px' }}>Tel: (02) 8-XXX-XXXX</div>
+                <div style={{ fontSize: '9px', marginTop: '2px' }}>Contact No: 0977-330-5640</div>
             </div>
 
             <div style={{ textAlign: 'center', margin: '8px 0' }}>***************************************</div>
@@ -76,8 +87,8 @@ const EndShiftReport: React.FC<EndShiftReportProps> = ({ reportData }) => {
                     <span>{reportData.cashier_name}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Date:</span>
-                    <span>{formatDate(reportData.shift_date)}</span>
+                    <span>Shift Start:</span>
+                    <span>{formatDate(reportData.shift_start_time)}</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span>Shift End:</span>
@@ -219,7 +230,7 @@ const EndShiftReport: React.FC<EndShiftReportProps> = ({ reportData }) => {
                 ||| || ||| || |||| ||| || |||
             </div>
             <div style={{ textAlign: 'center', fontSize: '9px', marginTop: '2px' }}>
-                SHIFT-{reportData.shift_date.replace(/-/g, '')}
+                {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
             </div>
         </div>
     );

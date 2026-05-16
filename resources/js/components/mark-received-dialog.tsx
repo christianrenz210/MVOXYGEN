@@ -134,7 +134,7 @@ export default function MarkReceivedDialog({ purchaseOrder, open, onOpenChange }
                     {/* Payment Status */}
                     <div className="space-y-2">
                         <Label className="flex items-center gap-1.5">
-                            <DollarSign className="h-4 w-4" />
+                            <span className="h-4 w-4 font-bold">₱</span>
                             Payment Status {isCOD && <span className="text-red-500">*</span>}
                         </Label>
                         <Select value={paymentStatus} onValueChange={(v) => setPaymentStatus(v as any)}>

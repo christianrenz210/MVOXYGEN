@@ -129,7 +129,7 @@ export default function SupplierDashboard({ orders, supplier }: Props) {
                                 <p className="text-sm text-gray-600">Total Orders</p>
                                 <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                             </div>
-                            <Package className="w-8 h-8 text-blue-600" />
+                            <span className="font-bold text-muted-foreground">₱</span>
                         </div>
                     </div>
                     <div className="bg-white rounded-lg shadow p-6">

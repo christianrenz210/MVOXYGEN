@@ -3,6 +3,16 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Calendar, Package, DollarSign, CheckCircle, Clock, AlertCircle, Building2, Truck, Edit } from 'lucide-react';
 
+interface PurchaseOrderPayment {
+    id: number;
+    amount: number;
+    payment_method: string;
+    gcash_reference?: string;
+    gcash_phone?: string;
+    gcash_time?: string;
+    created_at: string;
+}
+
 interface PurchaseOrder {
     id: number;
     po_number: string;
@@ -17,6 +27,7 @@ interface PurchaseOrder {
     created_at: string;
     updated_at?: string;
     notes?: string;
+    payments?: PurchaseOrderPayment[];
 }
 
 interface ViewPurchaseOrderDialogProps {
@@ -134,12 +145,49 @@ export default function ViewPurchaseOrderDialog({ purchaseOrder, open, onOpenCha
                     <div className="space-y-2">
                         <h4 className="text-sm font-medium text-muted-foreground">Financial Information</h4>
                         <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                            <DollarSign className="h-5 w-5 text-muted-foreground" />
+                            <span className="h-5 w-5 text-muted-foreground font-bold">₱</span>
                             <div>
                                 <div className="font-medium">{formatCurrency(purchaseOrder.total_amount)}</div>
                                 <div className="text-sm text-muted-foreground">Total Amount</div>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Payment History */}
+                    <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-muted-foreground">Payment History</h4>
+                        {purchaseOrder.payments && purchaseOrder.payments.length > 0 ? (
+                            <div className="space-y-2">
+                                {purchaseOrder.payments.map((payment) => (
+                                    <div key={payment.id} className="p-3 bg-muted rounded-lg text-sm border">
+                                        <div className="flex justify-between items-start mb-1">
+                                            <div className="font-medium text-green-700">
+                                                ₱{formatCurrency(payment.amount).replace('₱', '')}
+                                            </div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {new Date(payment.created_at).toLocaleString()}
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Badge variant="outline" className="capitalize text-xs">
+                                                {payment.payment_method}
+                                            </Badge>
+                                        </div>
+                                        {payment.payment_method === 'gcash' && (
+                                            <div className="grid grid-cols-2 gap-1 mt-2 text-xs bg-white p-2 rounded border border-blue-100">
+                                                <div><span className="text-muted-foreground">Ref No:</span> {payment.gcash_reference}</div>
+                                                <div><span className="text-muted-foreground">Phone:</span> {payment.gcash_phone}</div>
+                                                <div><span className="text-muted-foreground">Time:</span> {payment.gcash_time}</div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-4 bg-muted rounded-lg text-sm text-center text-muted-foreground italic border">
+                                No payments recorded yet. Receive items and add payment to see them here.
+                            </div>
+                        )}
                     </div>
 
                     {/* Notes */}

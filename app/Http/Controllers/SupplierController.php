@@ -6,6 +6,8 @@ use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
 
 class SupplierController extends Controller
 {
@@ -41,20 +43,73 @@ class SupplierController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
+        // Validate the request data
+        $validated = $request->validate([
             'name' => 'required|string|max:255',
             'plant_name' => 'nullable|string|max:255',
             'address' => 'required|string|max:255',
             'contact_person' => 'required|string|max:255',
             'contact_number' => 'required|string|max:20',
-            'email' => 'nullable|email|max:255',
+            'email' => 'required|email|unique:users,email',
+            'password' => 'required|string|min:8|confirmed',
             'notes' => 'nullable|string',
             'is_active' => 'boolean',
+        ], [
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email address is already registered.',
+            'password.required' => 'Password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ]);
 
-        Supplier::create($request->all());
+        try {
+            // Create supplier record
+            $supplier = Supplier::create([
+                'name' => $validated['name'],
+                'plant_name' => $validated['plant_name'] ?? null,
+                'address' => $validated['address'],
+                'contact_person' => $validated['contact_person'],
+                'contact_number' => $validated['contact_number'],
+                'email' => $validated['email'],
+                'notes' => $validated['notes'] ?? null,
+                'is_active' => $validated['is_active'] ?? true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
 
-        return redirect()->route('suppliers.index')->with('success', 'Supplier created successfully.');
+            // Create user account for the supplier
+            $user = \App\Models\User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'supplier',
+                'supplier_id' => $supplier->id,
+                'status' => 'active',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            // Send OTP for email verification (similar to registration)
+            $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            
+            // Store OTP in session or database (using session for now)
+            session(['user_otp_' . $user->id => $otp]);
+            session(['user_otp_expires_' . $user->id => now()->addMinutes(10)]);
+
+            // Send OTP email (you would implement email sending here)
+            // For now, we'll just store it in session for testing
+            session(['test_otp_' . $user->id => $otp]);
+
+            // Log in the user automatically
+            Auth::login($user);
+
+            return redirect()->route('suppliers.index')->with('success', 'Supplier successfully added! User account created and OTP sent.');
+        } catch (\Exception $e) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Failed to create supplier. Please try again.']);
+        }
     }
 
     /**

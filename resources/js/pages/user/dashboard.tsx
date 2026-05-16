@@ -163,10 +163,43 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
         });
     };
 
-    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+    const validateContactNumber = (number: string): { isValid: boolean; formatted: string; error?: string } => {
+        // Remove all non-digit characters
+        const digitsOnly = number.replace(/\D/g, '');
+        
+        // Check if it starts with 09 and has exactly 10 digits
+        if (digitsOnly.length === 0) {
+            return { isValid: false, formatted: '', error: '' };
+        }
+        
+        if (digitsOnly.length < 10) {
+            return { isValid: false, formatted: number, error: 'Contact number must be 10 digits' };
+        }
+        
+        if (digitsOnly.length > 10) {
+            return { isValid: false, formatted: number, error: 'Contact number must be exactly 10 digits' };
+        }
+        
+        if (!digitsOnly.startsWith('09')) {
+            return { isValid: false, formatted: number, error: 'Contact number must start with 09' };
+        }
+        
+        // Format as 09XX-XXX-XXXX
+        const formatted = `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 7)}-${digitsOnly.slice(7)}`;
+        return { isValid: true, formatted };
+    };
 
+    const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        
+        if (name === 'contact_number') {
+            const validation = validateContactNumber(value);
+            setFormData(prev => ({ ...prev, [name]: validation.formatted }));
+        } else {
+            setFormData(prev => ({ ...prev, [name]: value }));
+        }
+        
+        // Clear contact number and address when tank type changes
         if (name === 'tank_type' && value !== formData.tank_type) {
             setFormData(prev => ({
                 ...prev,
@@ -289,7 +322,7 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
                 {billingInfo && billingInfo.length > 0 && (
                     <div className={`bg-card rounded-xl shadow-lg p-6 mb-8 dark:shadow-xl ${quickActionsVisible ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000' : 'opacity-0'}`}>
                         <h2 className="text-xl font-bold text-foreground mb-4 flex items-center">
-                            <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+                            <span className="text-green-600 font-bold mr-2">₱</span>
                             Payment Billing
                         </h2>
                         
@@ -631,15 +664,20 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number</label>
-                                <input
-                                    type="text"
-                                    name="contact_number"
-                                    value={formData.contact_number}
-                                    onChange={handleFormChange}
-                                    placeholder="Enter your contact number"
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    required
-                                />
+                                <div className="relative">
+                                    <div className="absolute left-3 top-2 text-gray-600 font-medium">+63</div>
+                                    <input
+                                        type="tel"
+                                        name="contact_number"
+                                        value={formData.contact_number}
+                                        onChange={handleFormChange}
+                                        placeholder="9XX-XXX-XXXX"
+                                        className="w-full px-3 py-2 pl-12 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        maxLength={12}
+                                        required
+                                    />
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">Format: 09XX-XXX-XXXX (Philippines mobile number)</p>
                             </div>
 
                             <div>

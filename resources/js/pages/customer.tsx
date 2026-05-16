@@ -13,6 +13,7 @@ import AddCustomerDialog from '@/components/add-customer-dialog';
 import EditCustomerDialog from '@/components/edit-customer-dialog';
 import ArchiveCustomerDialog from '@/components/archive-customer-dialog';
 import RestoreCustomerDialog from '@/components/restore-customer-dialog';
+import DeleteCustomerDialog from '@/components/delete-customer-dialog';
 import ViewCustomerDialog from '@/components/view-customer-dialog';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { type BreadcrumbItem } from '@/types';
@@ -409,6 +410,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                                     variant={customer.status === 'active' ? 'default' : 'secondary'}
                                                     className={
                                                         customer.status === 'active' ? 'bg-green-100 text-green-800 hover:bg-green-200' :
+                                                        customer.status === 'inactive' ? 'bg-red-100 text-red-800 hover:bg-red-200' :
                                                         customer.status === 'archived' ? 'bg-orange-100 text-orange-800 hover:bg-orange-200' :
                                                         'bg-gray-100 text-gray-800 hover:bg-gray-200'
                                                     }
@@ -438,10 +440,16 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                                         onSuccess={() => router.visit('/customer')} 
                                                     />
                                                     {customer.status === 'archived' ? (
-                                                        <RestoreCustomerDialog 
-                                                            customer={customer} 
-                                                            onSuccess={() => router.visit('/customer')} 
-                                                        />
+                                                        <>
+                                                            <RestoreCustomerDialog 
+                                                                customer={customer} 
+                                                                onSuccess={() => router.visit('/customer')} 
+                                                            />
+                                                            <DeleteCustomerDialog 
+                                                                customer={customer} 
+                                                                onSuccess={() => router.visit('/customer')} 
+                                                            />
+                                                        </>
                                                     ) : (
                                                         <ArchiveCustomerDialog 
                                                             customer={customer} 

@@ -235,7 +235,7 @@ export default function AdminSupplierOrders({ orders, suppliers }: Props) {
                                 <p className="text-sm text-gray-600">Unpaid</p>
                                 <p className="text-2xl font-bold text-gray-900">{stats.unpaid}</p>
                             </div>
-                            <DollarSign className="w-8 h-8 text-orange-600" />
+                            <span className="text-orange-600 font-bold text-3xl">₱</span>
                         </div>
                     </div>
                 </div>

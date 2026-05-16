@@ -7,6 +7,7 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from 'recharts';
 import ConfirmModal from '@/components/confirm-modal';
 import PromptModal from '@/components/prompt-modal';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 const useScrollAnimation = () => {
     const [isVisible, setIsVisible] = useState(false);
@@ -172,6 +173,7 @@ export default function Dashboard({
     const [activities, setActivities] = useState<Activity[]>(initialActivities);
     const [rentalStats, setRentalStats] = useState(initialRentalStats);
     const [dailySales, setDailySales] = useState(initialDailySales);
+    const monthInputRef = useRef<HTMLInputElement>(null);
 
     // Modal states
     const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -569,15 +571,37 @@ export default function Dashboard({
                     {chartView === 'rental' && (
                         <div className="mb-6 flex items-center gap-3">
                             {statsPeriod === 'monthly' && (
-                                <div className="relative">
-                                    <input
-                                        type="month"
-                                        value={selectedMonth}
-                                        onChange={(e) => setSelectedMonth(e.target.value)}
-                                        className="text-sm border border-gray-400 bg-white text-gray-800 rounded-lg px-3 py-1.5 pr-8 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer"
-                                    />
-                                    <Calendar className="w-4 h-4 absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-500 pointer-events-none" />
-                                </div>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <button className="flex items-center justify-between w-44 text-sm border border-gray-400 bg-white text-gray-800 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 cursor-pointer">
+                                            <span>
+                                                {new Date(selectedMonth + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                            </span>
+                                            <Calendar className="w-4 h-4 text-blue-600" />
+                                        </button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent className="w-44 max-h-[300px] overflow-y-auto bg-white" align="start">
+                                        {Array.from({ length: 12 }, (_, i) => {
+                                            const d = new Date();
+                                            d.setDate(1); // Fix month calculation edge cases
+                                            d.setMonth(new Date().getMonth() - i);
+                                            const year = d.getFullYear();
+                                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                                            const value = `${year}-${month}`;
+                                            const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                                            
+                                            return (
+                                                <DropdownMenuItem
+                                                    key={value}
+                                                    onClick={() => setSelectedMonth(value)}
+                                                    className={`cursor-pointer ${selectedMonth === value ? "bg-blue-50 text-blue-700 font-medium" : ""}`}
+                                                >
+                                                    {label}
+                                                </DropdownMenuItem>
+                                            );
+                                        })}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
                             <div className="flex space-x-1 bg-white rounded-lg p-1 border border-gray-300">
                                 <button
@@ -833,7 +857,7 @@ export default function Dashboard({
                 </div>
 
                 {/* Daily Sales */}
-                <div className={`bg-white rounded-xl shadow-lg p-6 ${chartVisible ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000' : 'opacity-0'}`}>
+                {/* <div className={`bg-white rounded-xl shadow-lg p-6 ${chartVisible ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000' : 'opacity-0'}`}>
                     <div className="mb-6">
                         <h2 className="text-xl font-bold text-gray-800">Daily Sales</h2>
                         <p className="text-sm text-gray-500">Today's sales performance</p>
@@ -849,9 +873,7 @@ export default function Dashboard({
                                     </p>
                                 </div>
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                    </svg>
+                                    <span className="text-green-600 font-bold text-xl">₱</span>
                                 </div>
                             </div>
                         </div>
@@ -872,7 +894,7 @@ export default function Dashboard({
                             </div>
                         </div>
                     </div>
-                </div>
+                </div> */}
 
                 
                 {/* Tank Inventory */}

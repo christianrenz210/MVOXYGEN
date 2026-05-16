@@ -53,6 +53,16 @@ interface PurchaseOrderItem {
     total: number;
 }
 
+interface PurchaseOrderPayment {
+    id: number;
+    amount: number;
+    payment_method: string;
+    gcash_reference?: string;
+    gcash_phone?: string;
+    gcash_time?: string;
+    created_at: string;
+}
+
 interface PurchaseOrder {
     id: number;
     po_number: string;
@@ -70,6 +80,7 @@ interface PurchaseOrder {
     updated_at?: string;
     notes?: string;
     items?: PurchaseOrderItem[];
+    payments?: PurchaseOrderPayment[];
 }
 
 interface SupplierProduct {
@@ -378,7 +389,7 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
-                                                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                                                    <span className="font-bold text-muted-foreground">₱</span>
                                                     <span className="font-medium">{formatCurrency(po.total_amount)}</span>
                                                 </div>
                                             </TableCell>

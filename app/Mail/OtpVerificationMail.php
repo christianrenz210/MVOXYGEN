@@ -19,7 +19,7 @@ class OtpVerificationMail extends Mailable
     /**
      * Create a new message instance.
      */
-    public function __construct(string $otp, $user)
+    public function __construct($otp, $user)
     {
         $this->otp = $otp;
         $this->user = $user;

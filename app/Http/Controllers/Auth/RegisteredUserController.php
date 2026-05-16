@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rules;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -49,10 +50,10 @@ class RegisteredUserController extends Controller
                 ->withOptions([
                     'verify' => false, // Disable SSL verification for localhost development
                     'curl' => [
-                        CURLOPT_SSL_VERIFYPEER => false,
-                        CURLOPT_SSL_VERIFYHOST => false,
-                        CURLOPT_CONNECTTIMEOUT => 10,
-                        CURLOPT_TIMEOUT => 15,
+                        100 => false, // CURLOPT_SSL_VERIFYPEER
+                        101 => false, // CURLOPT_SSL_VERIFYHOST
+                        28 => 10,    // CURLOPT_CONNECTTIMEOUT
+                        13 => 15,    // CURLOPT_TIMEOUT
                     ]
                 ])
                 ->post('https://www.google.com/recaptcha/api/siteverify', [

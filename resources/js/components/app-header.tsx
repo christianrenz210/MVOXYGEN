@@ -7,12 +7,11 @@ import { NavigationMenu, NavigationMenuItem, NavigationMenuList, navigationMenuT
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { UserMenuContent } from '@/components/user-menu-content';
-import { SearchModal } from '@/components/search-modal';
 import { useInitials } from '@/hooks/use-initials';
 import { cn } from '@/lib/utils';
 import { type BreadcrumbItem, type NavItem, type SharedData } from '@/types';
 import { Link, router, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Menu } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import AppLogo from './app-logo';
@@ -51,7 +50,6 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     const getInitials = useInitials();
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
-    const [showSearchModal, setShowSearchModal] = useState(false);
 
     const handleLogout = () => {
         setIsLoggingOut(true);
@@ -64,21 +62,7 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
     };
 
     // Keyboard shortcut for search (Ctrl+K or Cmd+K)
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
-                e.preventDefault();
-                setShowSearchModal(true);
-            }
-            if (e.key === 'Escape' && showSearchModal) {
-                setShowSearchModal(false);
-            }
-        };
-
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showSearchModal]);
-
+    
     return (
         <>
             <div className="border-sidebar-border/80 border-b">
@@ -159,9 +143,6 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
 
                     <div className="ml-auto flex items-center space-x-2">
                         <div className="relative flex items-center space-x-1">
-                            <Button variant="ghost" size="icon" className="group h-9 w-9 cursor-pointer" onClick={() => setShowSearchModal(true)}>
-                                <Search className="!size-5 opacity-80 group-hover:opacity-100" />
-                            </Button>
                             <div className="hidden lg:flex">
                                 {rightNavItems.map((item) => (
                                     <TooltipProvider key={item.title} delayDuration={0}>
@@ -260,8 +241,6 @@ export function AppHeader({ breadcrumbs = [] }: AppHeaderProps) {
                 </div>
             )}
 
-            {/* Search Modal */}
-            <SearchModal isOpen={showSearchModal} onClose={() => setShowSearchModal(false)} />
-        </>
+                    </>
     );
 }

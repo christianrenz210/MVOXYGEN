@@ -509,7 +509,7 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Refill Cost</label>
                                 <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 font-bold">₱</span>
                                     <input
                                         type="number"
                                         name="refill_cost"

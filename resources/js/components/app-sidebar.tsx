@@ -97,12 +97,12 @@ const supplierNavItems: NavItem[] = [
     },
     {
         title: 'Orders',
-        url: '/supplier/dashboard',
+        url: '/supplier/orders',
         icon: Package,
     },
     {
         title: 'Settings',
-        url: '/user/settings',
+        url: '/supplier/settings',
         icon: Settings,
     }
 ];

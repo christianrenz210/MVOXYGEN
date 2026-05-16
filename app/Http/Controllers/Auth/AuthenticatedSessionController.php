@@ -45,6 +45,11 @@ class AuthenticatedSessionController extends Controller
             'user_agent' => $request->userAgent(),
         ]);
 
+        // Store shift start time for cashiers
+        if ($user->role === 'cashier') {
+            $request->session()->put('shift_start_time', now()->setTimezone('Asia/Manila')->format('Y-m-d H:i:s'));
+        }
+
         return redirect()->intended(route($user->getDashboardRoute(), absolute: false));
     }
 

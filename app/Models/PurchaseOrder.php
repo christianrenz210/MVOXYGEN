@@ -45,6 +45,11 @@ class PurchaseOrder extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(PurchaseOrderPayment::class);
+    }
+
     public function getSupplierNameAttribute(): string
     {
         return $this->supplier?->name ?? 'Unknown Supplier';

@@ -76,7 +76,7 @@ export function UserSidebar() {
                 {(billingInfo && billingInfo.length > 0) || (totalOutstandingBalance && totalOutstandingBalance > 0) ? (
                     <SidebarGroup>
                         <SidebarGroupLabel className="flex items-center gap-2 text-sm">
-                            <DollarSign className="w-4 h-4" />
+                            <span className="w-4 h-4 font-bold">₱</span>
                             Payment Billing
                         </SidebarGroupLabel>
                         <SidebarGroupContent>

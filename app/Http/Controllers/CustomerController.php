@@ -7,6 +7,9 @@ use App\Models\Customer;
 use App\Models\Transaction;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class CustomerController extends Controller
 {
@@ -132,20 +135,98 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
-        // Remove all format requirements
-        $data = $request->all();
+        // Validate the request data
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'contact_number' => [
+                'nullable',
+                'string',
+                'min:10',
+            ],
+            'password' => 'required|string|min:8|confirmed',
+            'status' => 'required|in:active,inactive',
+        ], [
+            'email.required' => 'Email address is required.',
+            'email.email' => 'Please enter a valid email address.',
+            'email.unique' => 'This email address is already registered.',
+            'password.required' => 'Password is required.',
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.confirmed' => 'Password confirmation does not match.',
+        ]);
+
+        // Check if email is verified via OTP
+        if (!\App\Http\Controllers\OtpController::isEmailVerified($validated['email'], 'customer_creation')) {
+            return redirect()->back()
+                ->withInput()
+                ->withErrors(['error' => 'Email verification required. Please verify your email first.']);
+        }
 
         try {
-            // Simple customer creation without format requirements
+            // Create customer record
             $customer = Customer::create([
-                'name' => $data['name'] ?? '',
-                'contact_number' => $data['contact_number'] ?? '',
-                'address' => $data['address'] ?? '',
-                'status' => $data['status'] ?? 'active',
+                'name' => $validated['name'],
+                'contact_number' => $validated['contact_number'] ?? '',
+                'address' => '', // Empty address for now
+                'status' => $validated['status'],
                 'total_rentals' => 0,
+                'join_date' => now(),
                 'created_at' => now(),
                 'updated_at' => now(),
             ]);
+
+            // Create user account for the customer (using same logic as registration)
+            Log::info('Attempting to create user account for customer', [
+                'customer_id' => $customer->id,
+                'email' => $validated['email'],
+                'name' => $validated['name'],
+            ]);
+
+            try {
+                $user = \App\Models\User::create([
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['contact_number'] ?? null,
+                    'password' => Hash::make($validated['password']),
+                    'role' => 'customer',
+                    'customer_id' => $customer->id,
+                ]);
+
+                Log::info('User account created successfully for customer', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'role' => $user->role,
+                    'customer_id' => $customer->id,
+                    'phone' => $user->phone,
+                ]);
+
+                // Verify user was actually saved
+                $savedUser = \App\Models\User::find($user->id);
+                if (!$savedUser) {
+                    Log::error('User was not actually saved to database', [
+                        'user_id' => $user->id,
+                    ]);
+                    throw new \Exception('User was not saved to database');
+                }
+
+            } catch (\Exception $e) {
+                Log::error('Failed to create user account for customer', [
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'customer_id' => $customer->id,
+                    'email' => $validated['email'],
+                    'trace' => $e->getTraceAsString(),
+                ]);
+
+                // Return error response
+                return redirect()->back()
+                    ->withInput()
+                    ->withErrors(['error' => 'Failed to create user account: ' . $e->getMessage()]);
+            }
+
+            // Clear OTP verification after successful creation
+            \App\Http\Controllers\OtpController::clearEmailVerification($validated['email'], 'customer_creation');
 
             // Get updated customer list
             $customers = Customer::orderBy('created_at', 'desc')->get();
@@ -179,7 +260,8 @@ class CustomerController extends Controller
             return Inertia::render('customer', [
                 'customers' => $customers,
                 'recent_transactions' => $allRecentTransactions,
-                'success' => 'Customer successfully added!',
+                'success' => 'Customer successfully added! User account created.',
+                'user_id' => $user->id,
                 'breadcrumbs' => [
                     ['title' => 'Dashboard', 'href' => '/dashboard'],
                     ['title' => 'Customer Management', 'href' => '/customer']
@@ -189,9 +271,16 @@ class CustomerController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
+            Log::error('Failed to create customer', [
+                'error' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
             return redirect()->back()
                 ->withInput()
-                ->withErrors(['error' => 'Failed to create customer. Please try again.']);
+                ->withErrors(['error' => 'Failed to create customer: ' . $e->getMessage()]);
         }
     }
 
@@ -270,15 +359,13 @@ class CustomerController extends Controller
             'contact_number' => [
                 'required',
                 'string',
-                'regex:/^09\d{2}-\d{3}-\d{4}$/',
-                'min:11',
+                'min:10',
             ],
             'address' => 'required|string|max:500',
             'status' => 'required|in:active,inactive',
         ], [
             'contact_number.required' => 'Contact number is required.',
-            'contact_number.regex' => 'Contact number must be in format: 09XX-XXX-XXXX',
-            'contact_number.min' => 'Contact number is too short. Must be exactly 11 characters (09XX-XXX-XXXX).',
+            'contact_number.min' => 'Contact number must be at least 10 characters.',
         ]);
 
         try {
@@ -389,6 +476,33 @@ class CustomerController extends Controller
             return redirect()->back()
                 ->withInput()
                 ->withErrors(['error' => 'Failed to restore customer. Please try again.']);
+        }
+    }
+
+    /**
+     * Permanently delete the specified customer.
+     */
+    public function destroy(string $id)
+    {
+        $customer = Customer::findOrFail($id);
+
+        // Only allow deleting archived customers
+        if ($customer->status !== 'archived') {
+            return redirect()->back()->withErrors(['error' => 'Only archived customers can be permanently deleted.']);
+        }
+
+        try {
+            // Delete associated user account
+            if ($customer->user) {
+                $customer->user->delete();
+            }
+
+            // Delete the customer (this also cascades transactions if set up)
+            $customer->delete();
+
+            return redirect()->route('customer')->with('success', 'Customer permanently deleted!');
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['error' => 'Failed to delete customer. Please try again.']);
         }
     }
 }

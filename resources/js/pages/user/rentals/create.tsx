@@ -103,10 +103,53 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
         });
     };
 
+    const validateContactNumber = (number: string): { isValid: boolean; formatted: string; error?: string } => {
+        // Remove all non-digit characters
+        const digitsOnly = number.replace(/\D/g, '');
+        
+        // Check if it starts with 09 and has exactly 10 digits
+        if (digitsOnly.length === 0) {
+            return { isValid: false, formatted: '', error: '' };
+        }
+        
+        if (digitsOnly.length < 10) {
+            return { isValid: false, formatted: number, error: 'Contact number must be 10 digits' };
+        }
+        
+        if (digitsOnly.length > 10) {
+            return { isValid: false, formatted: number, error: 'Contact number must be exactly 10 digits' };
+        }
+        
+        if (!digitsOnly.startsWith('09')) {
+            return { isValid: false, formatted: number, error: 'Contact number must start with 09' };
+        }
+        
+        // Format as 09XX-XXX-XXXX
+        const formatted = `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 7)}-${digitsOnly.slice(7)}`;
+        return { isValid: true, formatted };
+    };
+
     const handleChange = (field: string, value: string | number) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-        if (errors[field]) {
-            setErrors(prev => ({ ...prev, [field]: '' }));
+        if (field === 'contact_number') {
+            const contactNumber = value as string;
+            const validation = validateContactNumber(contactNumber);
+            
+            setFormData(prev => ({ ...prev, [field]: validation.formatted }));
+            
+            if (contactNumber.length > 0) {
+                if (validation.isValid) {
+                    setErrors(prev => ({ ...prev, contact_number: '' }));
+                } else {
+                    setErrors(prev => ({ ...prev, contact_number: validation.error || 'Invalid contact number format' }));
+                }
+            } else {
+                setErrors(prev => ({ ...prev, contact_number: '' }));
+            }
+        } else {
+            setFormData(prev => ({ ...prev, [field]: value }));
+            if (errors[field]) {
+                setErrors(prev => ({ ...prev, [field]: '' }));
+            }
         }
 
         // Clear tank types when switching request type
@@ -463,21 +506,24 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                                 Contact Number *
                             </label>
                             <div className="relative">
-                                <Phone className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
+                                <div className="absolute left-3 top-3 text-gray-600 font-medium">+63</div>
+                                <Phone className="absolute left-16 top-3 w-4 h-4 text-gray-400" />
                                 <input
                                     type="tel"
                                     value={formData.contact_number}
                                     onChange={(e) => handleChange('contact_number', e.target.value)}
-                                    className={`w-full p-3 pl-10 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                    className={`w-full p-3 pl-20 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                                         errors.contact_number ? 'border-red-500' : 'border-gray-300'
                                     }`}
-                                    placeholder="09XX-XXX-XXXX"
+                                    placeholder="9XX-XXX-XXXX"
+                                    maxLength={12} // 09XX-XXX-XXXX format
                                     required
                                 />
                             </div>
                             {errors.contact_number && (
                                 <p className="mt-1 text-sm text-red-600">{errors.contact_number}</p>
                             )}
+                            <p className="mt-1 text-xs text-gray-500">Format: 09XX-XXX-XXXX (Philippines mobile number)</p>
                         </div>
 
                         {/* Delivery Address - Only show when delivery is selected */}

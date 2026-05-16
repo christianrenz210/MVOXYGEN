@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Tank;
 use App\Models\Sale;
+use App\Models\Activity;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -14,12 +15,18 @@ class CashierController extends Controller
     /**
      * Display the cashier POS interface.
      */
-    public function index(): Response
+    public function index()
     {
         $tanks = Tank::where('status', 'available')->get();
         
+        // Check if shift is active
+        $shiftActive = session('shift_active', false);
+        $shiftStartTime = session('shift_start_time');
+        
         return Inertia::render('cashier/index', [
             'tanks' => $tanks,
+            'shiftActive' => $shiftActive,
+            'shiftStartTime' => $shiftStartTime,
             'auth' => [
                 'user' => auth()->user()
             ]
@@ -106,6 +113,32 @@ class CashierController extends Controller
     }
     
     /**
+     * Start shift for the cashier.
+     */
+    public function startShift(Request $request)
+    {
+        try {
+            // Store shift start time in session
+            $request->session()->put('shift_start_time', now()->setTimezone('Asia/Manila')->format('Y-m-d H:i:s'));
+            $request->session()->put('shift_active', true);
+            
+            // Log shift start activity
+            Activity::create([
+                'user_id' => auth()->id(),
+                'action' => 'shift_start',
+                'description' => "Cashier " . auth()->user()->name . " started their shift",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
+            return redirect()->back()->with('success', 'Shift started successfully!');
+            
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error starting shift: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * End shift and generate daily transaction report.
      */
     public function endShift(Request $request)
@@ -131,11 +164,15 @@ class CashierController extends Controller
             // Get unique customers
             $uniqueCustomers = $sales->pluck('customer_name')->unique()->count();
             
+            // Get shift start time from session
+            $shiftStartTime = session('shift_start_time', now()->setTimezone('Asia/Manila')->format('Y-m-d H:i:s'));
+            
             // Prepare report data
             $reportData = [
                 'cashier_name' => auth()->user()->name,
                 'shift_date' => $today,
-                'shift_end_time' => now()->format('Y-m-d H:i:s'),
+                'shift_start_time' => $shiftStartTime,
+                'shift_end_time' => now()->setTimezone('Asia/Manila')->format('Y-m-d H:i:s'),
                 'total_sales' => $totalSales,
                 'total_revenue' => $totalRevenue,
                 'cash_sales' => $cashSales,
@@ -145,10 +182,24 @@ class CashierController extends Controller
                 'sales' => $sales,
             ];
             
+            // Clear shift state
+            $request->session()->forget('shift_start_time');
+            $request->session()->forget('shift_active');
+            
+            // Log shift end activity
+            Activity::create([
+                'user_id' => auth()->id(),
+                'action' => 'shift_end',
+                'description' => "Cashier " . auth()->user()->name . " ended their shift",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+            
             // Return Inertia response with report data as props
             return Inertia::render('cashier/index', [
                 'tanks' => \App\Models\Tank::where('status', 'available')->get(),
                 'endShiftReport' => $reportData,
+                'shiftActive' => false,
                 'auth' => [
                     'user' => auth()->user()
                 ]

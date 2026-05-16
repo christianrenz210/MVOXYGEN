@@ -336,4 +336,60 @@ class SupplierOrderController extends Controller
 
         return redirect()->back()->with('success', 'Product deleted successfully!');
     }
+
+    /**
+     * Display supplier settings page.
+     */
+    public function settings(): Response
+    {
+        $supplier = Supplier::where('user_id', auth()->id())->first();
+        
+        if (!$supplier) {
+            abort(403, 'No supplier profile found');
+        }
+
+        return Inertia::render('supplier/settings', [
+            'supplier' => $supplier,
+            'auth' => [
+                'user' => auth()->user()
+            ]
+        ]);
+    }
+
+    /**
+     * Update supplier profile.
+     */
+    public function updateProfile(Request $request)
+    {
+        $supplier = Supplier::where('user_id', auth()->id())->first();
+        
+        if (!$supplier) {
+            abort(403, 'No supplier profile found');
+        }
+
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'plant_name' => 'nullable|string|max:255',
+            'contact_person' => 'required|string|max:255',
+            'contact_number' => 'required|string|max:255',
+            'address' => 'required|string',
+        ]);
+
+        $supplier->update([
+            'name' => $request->name,
+            'plant_name' => $request->plant_name,
+            'contact_person' => $request->contact_person,
+            'contact_number' => $request->contact_number,
+            'address' => $request->address,
+        ]);
+
+        // Also update the associated user's name
+        if ($supplier->user) {
+            $supplier->user->update([
+                'name' => $request->name,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Profile updated successfully!');
+    }
 }

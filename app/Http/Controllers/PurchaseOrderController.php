@@ -9,6 +9,7 @@ use Illuminate\Foundation\Validation\ValidatesRequests;
 use Illuminate\Routing\Controller;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\PurchaseOrderPayment;
 use App\Models\Supplier;
 use App\Models\SupplierProduct;
 use App\Models\Notification;
@@ -22,8 +23,8 @@ class PurchaseOrderController extends Controller
      */
     public function index()
     {
-        // Get purchase orders with supplier and items
-        $purchaseOrders = PurchaseOrder::with(['supplier', 'items'])
+        // Get purchase orders with supplier, items, and payments
+        $purchaseOrders = PurchaseOrder::with(['supplier', 'items', 'payments'])
             ->orderBy('created_at', 'desc')
             ->get()
             ->map(function ($po) {
@@ -50,6 +51,17 @@ class PurchaseOrderController extends Controller
                             'received_quantity' => (int) $item->received_quantity,
                             'price' => (float) $item->price,
                             'total' => (float) $item->total,
+                        ];
+                    }),
+                    'payments' => $po->payments->map(function ($payment) {
+                        return [
+                            'id' => $payment->id,
+                            'amount' => (float) $payment->amount,
+                            'payment_method' => $payment->payment_method,
+                            'gcash_reference' => $payment->gcash_reference,
+                            'gcash_phone' => $payment->gcash_phone,
+                            'gcash_time' => $payment->gcash_time,
+                            'created_at' => $payment->created_at->format('Y-m-d H:i:s'),
                         ];
                     }),
                 ];
@@ -272,6 +284,18 @@ class PurchaseOrderController extends Controller
             'status' => $status,
             'payment_status' => $request->payment_status
         ]);
+
+        // Log payment if amount is provided
+        if ($request->has('partial_amount') && $request->partial_amount > 0) {
+            PurchaseOrderPayment::create([
+                'purchase_order_id' => $order->id,
+                'amount' => $request->partial_amount,
+                'payment_method' => $request->payment_method ?? 'cash',
+                'gcash_reference' => $request->gcash_reference,
+                'gcash_phone' => $request->gcash_phone,
+                'gcash_time' => $request->gcash_time,
+            ]);
+        }
 
         $statusText = str_replace('_', ' ', ucfirst($status));
         $paymentText = str_replace('_', ' ', ucfirst($request->payment_status));

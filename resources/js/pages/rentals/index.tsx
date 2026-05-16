@@ -299,7 +299,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                 <p className="text-2xl font-bold text-gray-800">{rentalRequests.length}</p>
                             </div>
                             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                <Users className="w-6 h-6 text-blue-600" />
+                                <span className="font-bold text-muted-foreground">₱</span>
                             </div>
                         </div>
                     </div>

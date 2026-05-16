@@ -163,7 +163,7 @@ export default function AuditTrail({ sales, auth }: AuditTrailProps) {
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total GCash Payments</CardTitle>
-                            <DollarSign className="h-4 w-4 text-muted-foreground" />
+                            <span className="font-bold text-muted-foreground">₱</span>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-bold">{gcashSales.length}</div>
@@ -244,7 +244,7 @@ export default function AuditTrail({ sales, auth }: AuditTrailProps) {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="bg-gray-50 rounded p-3 space-y-2">
                                                 <h4 className="font-medium text-sm flex items-center gap-2">
-                                                    <DollarSign className="h-4 w-4" />
+                                                    <span className="font-bold text-muted-foreground">₱</span>
                                                     Payment Details
                                                 </h4>
                                                 <div className="space-y-1 text-xs">
