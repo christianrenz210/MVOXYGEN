@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid, Package, ShoppingCart, Users, BarChart3, Settings, FileText, RefreshCw, Home, PlusCircle, History, Building2, Truck, DollarSign } from 'lucide-react';
+import { BookOpen, Folder, LayoutGrid, Package, ShoppingCart, Users, BarChart3, Settings, FileText, RefreshCw, Home, PlusCircle, History, Building2, Truck, DollarSign, Activity } from 'lucide-react';
 import AppLogo from './app-logo';
 
 const adminNavItems: NavItem[] = [
@@ -18,12 +18,7 @@ const adminNavItems: NavItem[] = [
         url: '/customer',
         icon: Users,
     },
-    {
-        title: 'Cashier',
-        url: '/cashier',
-        icon: DollarSign,
-    },
-    {
+        {
         title: 'Rentals',
         url: '/rentals',
         icon: Package,
@@ -52,6 +47,11 @@ const adminNavItems: NavItem[] = [
         title: 'Reports',
         url: '/reports',
         icon: BarChart3,
+    },
+    {
+        title: 'Activity Logs',
+        url: '/activity-logs',
+        icon: Activity,
     },
     {
         title: 'Settings',

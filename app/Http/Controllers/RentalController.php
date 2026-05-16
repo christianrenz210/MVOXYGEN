@@ -87,16 +87,27 @@ class RentalController extends Controller
         }
 
         // Create rental record with deposit information
+        $tankPrice = 0;
+        if ($tank) {
+            $tankPrice = $tank->price ?? 0;
+        } else {
+            // Get tank price from tank type if no specific tank assigned
+            $tankByType = \App\Models\Tank::where('tank_type', $rentalRequest->tank_type)->first();
+            if ($tankByType) {
+                $tankPrice = $tankByType->price ?? 0;
+            }
+        }
+
         $rentalData = [
             'rental_request_id' => $rentalRequest->id,
             'customer_id' => $rentalRequest->customer_id,
             'product_id' => $rentalRequest->product_id,
             'tank_id' => $rentalRequest->assigned_tank_id,
-            'start_date' => $rentalRequest->start_date,
-            'end_date' => $rentalRequest->end_date,
+            'start_date' => $rentalRequest->start_date ?? now(),
+            'end_date' => $rentalRequest->end_date ?? now()->addDays(30),
             'status' => 'active',
             'pickup_date' => now(),
-            'total_amount' => $rentalRequest->product ? $rentalRequest->product->price : 0,
+            'total_amount' => $tankPrice > 0 ? $tankPrice : ($rentalRequest->product ? $rentalRequest->product->price : 0),
             'deposit_type' => 'Security Deposit',
             'deposit_amount' => 0,
             'deposit_payment_date' => now(),
@@ -285,5 +296,79 @@ class RentalController extends Controller
         }
 
         return redirect()->back()->with('success', 'Tank marked as returned successfully.');
+    }
+
+    public function payRemainingBalance(Request $request, RentalRequest $rentalRequest)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|string|in:cash,gcash,card',
+            'reference_number' => 'nullable|string',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        if (!$rentalRequest->rental) {
+            return back()->with('error', 'No rental record found for this request.');
+        }
+
+        $rental = $rentalRequest->rental;
+        $currentDeposit = $rental->deposit_amount ?? 0;
+        $totalRentalCost = $rental->total_amount ?? 0;
+        $newPaymentAmount = $request->amount;
+        
+        // Calculate new total deposit
+        $newTotalDeposit = $currentDeposit + $newPaymentAmount;
+        
+        // Check if payment exceeds remaining balance
+        if ($totalRentalCost > 0 && $newTotalDeposit > $totalRentalCost) {
+            return back()->with('error', 'Payment amount exceeds remaining balance. Maximum payable amount is: PHP ' . ($totalRentalCost - $currentDeposit));
+        }
+
+        // Update rental deposit amount
+        $rental->update([
+            'deposit_amount' => $newTotalDeposit,
+            'deposit_payment_method' => $request->payment_method,
+            'deposit_payment_date' => now(),
+            'deposit_reference_number' => $request->reference_number,
+            'deposit_status' => ($newTotalDeposit >= $totalRentalCost) ? 'paid' : 'partial_paid'
+        ]);
+
+        // Create deposit record for this payment
+        \App\Models\Deposit::create([
+            'rental_id' => $rental->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'amount' => $newPaymentAmount,
+            'payment_method' => $request->payment_method,
+            'reference_number' => $request->reference_number,
+            'status' => 'paid',
+            'payment_date' => now(),
+            'notes' => $request->notes,
+        ]);
+
+        // Log activity
+        $admin = auth()->user();
+        \App\Models\Activity::create([
+            'user_id' => $admin->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'rental_request_id' => $rentalRequest->id,
+            'action' => 'remaining_balance_paid',
+            'description' => "Admin {$admin->name} received payment of PHP {$newPaymentAmount} for remaining balance from {$rentalRequest->customer->name}",
+            'type' => 'success',
+        ]);
+
+        // Create notification for customer
+        $customerUser = \App\Models\User::where('name', $rentalRequest->customer->name)->first();
+        if ($customerUser) {
+            \App\Models\Notification::create([
+                'user_id' => $customerUser->id,
+                'type' => 'success',
+                'title' => 'Payment Received',
+                'message' => "Payment of PHP {$newPaymentAmount} has been received for your rental. Total deposit: PHP {$newTotalDeposit}",
+                'link' => "/user/rentals/{$rentalRequest->id}",
+                'read' => false,
+            ]);
+        }
+
+        return back()->with('success', 'Payment received successfully. Total deposit is now PHP ' . number_format($newTotalDeposit, 2));
     }
 }

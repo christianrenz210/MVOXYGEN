@@ -5,6 +5,8 @@ import { useState } from 'react';
 import { Package, Truck, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import ConfirmModal from '@/components/confirm-modal';
+import AlertModal from '@/components/alert-modal';
 
 interface SupplierOrder {
     id: number;
@@ -41,15 +43,45 @@ export default function SupplierOrders({ orders, supplier }: Props) {
     const [paymentStatus, setPaymentStatus] = useState<string>('unpaid');
     const [validationError, setValidationError] = useState<string>('');
 
+    // Modal states
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
     const handleShip = (orderId: number, orderType: string) => {
         const order = orders.find((o: any) => o.id === orderId);
-        if (confirm(`Are you sure you want to mark this order as shipped?\n\nOrder ID: ${orderId}\nType: ${orderType === 'supplier_order' ? 'Supplier Order' : 'Purchase Order'}\n\nThis action cannot be undone.`)) {
-            if (orderType === 'supplier_order') {
-                router.post(`/supplier/orders/${orderId}/ship`);
-            } else {
-                router.post(`/purchase-order/${orderId}/ship`);
-            }
-        }
+        showConfirm(
+            'Mark as Shipped',
+            `Are you sure you want to mark this order as shipped?\n\nOrder ID: ${orderId}\nType: ${orderType === 'supplier_order' ? 'Supplier Order' : 'Purchase Order'}\n\nThis action cannot be undone.`,
+            () => {
+                if (orderType === 'supplier_order') {
+                    router.post(`/supplier/orders/${orderId}/ship`);
+                } else {
+                    router.post(`/purchase-order/${orderId}/ship`);
+                }
+            },
+            'warning'
+        );
     };
 
     const handleReceive = (order: any) => {
@@ -108,9 +140,14 @@ export default function SupplierOrders({ orders, supplier }: Props) {
 
     const handleCancel = (orderId: number) => {
         const order = orders.find((o: any) => o.id === orderId);
-        if (confirm(`Are you sure you want to cancel this order?\n\nOrder ID: ${orderId}\nType: ${order?.type === 'supplier_order' ? 'Supplier Order' : 'Purchase Order'}\n\nThis action cannot be undone.`)) {
-            router.post(`/supplier/orders/${orderId}/cancel`);
-        }
+        showConfirm(
+            'Cancel Order',
+            `Are you sure you want to cancel this order?\n\nOrder ID: ${orderId}\nType: ${order?.type === 'supplier_order' ? 'Supplier Order' : 'Purchase Order'}\n\nThis action cannot be undone.`,
+            () => {
+                router.post(`/supplier/orders/${orderId}/cancel`);
+            },
+            'danger'
+        );
     };
 
     const getStatusBadge = (status: string, type: string) => {
@@ -349,7 +386,7 @@ export default function SupplierOrders({ orders, supplier }: Props) {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                onClick={() => alert(`Purchase Order Details\n\nPO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`)}
+                                                                onClick={() => showAlert('Purchase Order Details', `PO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`, 'info')}
                                                             >
                                                                 <Package className="h-4 w-4" />
                                                             </Button>
@@ -367,7 +404,7 @@ export default function SupplierOrders({ orders, supplier }: Props) {
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
-                                                                onClick={() => alert(`Purchase Order Details\n\nPO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`)}
+                                                                onClick={() => showAlert('Purchase Order Details', `PO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`, 'info')}
                                                             >
                                                                 <Package className="h-4 w-4" />
                                                             </Button>
@@ -377,7 +414,7 @@ export default function SupplierOrders({ orders, supplier }: Props) {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            onClick={() => alert(`Purchase Order Details\n\nPO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`)}
+                                                            onClick={() => showAlert('Purchase Order Details', `PO Number: ${order.po_number}\nProducts: ${order.tank_type}\nQuantity: ${order.quantity}\nTotal: ₱${Number(order.total_amount).toFixed(2)}\n\nPlease check your email for more details.`, 'info')}
                                                         >
                                                             <Package className="h-4 w-4" />
                                                         </Button>
@@ -390,7 +427,7 @@ export default function SupplierOrders({ orders, supplier }: Props) {
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
-                                                            onClick={() => alert(`Order has been shipped.\n\nTracking information will be sent to customer.\n\nType: Supplier Order`)}
+                                                            onClick={() => showAlert('Order Shipped', 'Order has been shipped.\n\nTracking information will be sent to customer.\n\nType: Supplier Order', 'info')}
                                                         >
                                                             <Truck className="h-4 w-4 mr-1" />
                                                             Ship Order
@@ -519,6 +556,28 @@ export default function SupplierOrders({ orders, supplier }: Props) {
                         </div>
                     </div>
                 )}
+
+                {/* Alert Modal */}
+                <AlertModal
+                    isOpen={showAlertModal}
+                    onClose={() => setShowAlertModal(false)}
+                    title={alertConfig.title}
+                    message={alertConfig.message}
+                    type={alertConfig.type}
+                />
+
+                {/* Confirm Modal */}
+                <ConfirmModal
+                    isOpen={showConfirmModal}
+                    onClose={() => setShowConfirmModal(false)}
+                    onConfirm={() => {
+                        confirmConfig.onConfirm();
+                        setShowConfirmModal(false);
+                    }}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    type={confirmConfig.type}
+                />
             </div>
         </SupplierLayout>
     );

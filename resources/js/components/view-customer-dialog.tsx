@@ -1,7 +1,7 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Phone, MapPin, Calendar, Package, X } from 'lucide-react';
+import { Phone, MapPin, Calendar, Package, X, DollarSign, AlertCircle } from 'lucide-react';
 
 interface Customer {
     id: number;
@@ -14,6 +14,9 @@ interface Customer {
     created_at: string;
     updated_at?: string;
     recent_transactions?: any[];
+    billing_info?: any[];
+    total_outstanding_balance?: number;
+    profile_image?: string;
     user?: {
         id: number;
         name: string;
@@ -22,6 +25,7 @@ interface Customer {
         role?: string;
         profile_image?: string;
         status?: string;
+        updated_at?: string;
     };
 }
 
@@ -32,6 +36,13 @@ interface ViewCustomerDialogProps {
 }
 
 export default function ViewCustomerDialog({ customer, open, onOpenChange }: ViewCustomerDialogProps) {
+    console.log('ViewCustomerDialog - customer:', customer);
+    console.log('Profile image check:', {
+        'customer.profile_image': customer.profile_image,
+        'customer.user?.profile_image': customer.user?.profile_image,
+        'customer.updated_at': customer.updated_at
+    });
+
     const getStatusBadge = (status: string) => {
         const badges = {
             active: 'bg-green-100 text-green-800 hover:bg-green-200',
@@ -43,29 +54,40 @@ export default function ViewCustomerDialog({ customer, open, onOpenChange }: Vie
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Customer Details</DialogTitle>
+                    <DialogDescription>
+                        View detailed information about this customer including their contact details, rental history, and account status.
+                    </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-6">
+                <div className="space-y-6 pb-6">
                     {/* Customer Information */}
                     <div className="bg-gray-50 rounded-lg p-4">
                         <h3 className="text-lg font-semibold mb-4">Customer Information</h3>
                         <div className="flex flex-col md:flex-row gap-6 mb-6">
                             <div className="flex flex-col items-center">
                                 <div className="w-24 h-24 rounded-full bg-muted flex items-center justify-center overflow-hidden mb-3">
-                                    {customer.user?.profile_image ? (
+                                    {(customer.profile_image || customer.user?.profile_image) ? (
                                         <img 
-                                            src={customer.user.profile_image} 
+                                            src={`/storage/${customer.profile_image || customer.user?.profile_image}?v=${Date.now()}`} 
                                             alt={customer.name}
                                             className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                                console.error('Image load error:', e.currentTarget.src);
+                                                console.error('Customer data:', customer);
+                                                e.currentTarget.style.display = 'none';
+                                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                            }}
+                                            onLoad={() => {
+                                                console.log('Image loaded successfully');
+                                            }}
                                         />
-                                    ) : (
-                                        <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-3xl">
-                                            {customer.name.charAt(0).toUpperCase()}
-                                        </div>
-                                    )}
+                                    ) : null}
+                                    <div className={`w-full h-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-3xl ${(customer.user?.profile_image || customer.profile_image) ? 'hidden' : ''}`}>
+                                        {customer.name.charAt(0).toUpperCase()}
+                                    </div>
                                 </div>
                                 <Badge 
                                     variant={customer.status === 'active' ? 'default' : 'secondary'}
@@ -137,6 +159,89 @@ export default function ViewCustomerDialog({ customer, open, onOpenChange }: Vie
                                     <label className="text-sm font-medium text-gray-500">Role</label>
                                     <p className="text-gray-800">{customer.user.role || 'customer'}</p>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment Billing / Outstanding Balances */}
+                    {customer.billing_info && customer.billing_info.length > 0 && (
+                        <div className={`rounded-lg p-4 ${
+                            customer.total_outstanding_balance && parseFloat(customer.total_outstanding_balance) > 0
+                                ? 'bg-amber-50 border border-amber-200'
+                                : 'bg-emerald-50 border border-emerald-200'
+                        }`}>
+                            <h3 className="text-lg font-semibold mb-4 flex items-center">
+                                <DollarSign className="h-5 w-5 mr-2" />
+                                Payment Billing
+                            </h3>
+                            
+                            <div className={`mb-4 p-3 rounded-lg ${
+                                customer.total_outstanding_balance && parseFloat(customer.total_outstanding_balance) > 0
+                                    ? 'bg-amber-100'
+                                    : 'bg-emerald-100'
+                            }`}>
+                                <div className="flex items-center justify-between">
+                                    <span className={`font-medium ${
+                                        customer.total_outstanding_balance && parseFloat(customer.total_outstanding_balance) > 0
+                                            ? 'text-amber-800'
+                                            : 'text-emerald-800'
+                                    }`}>
+                                        {customer.total_outstanding_balance && parseFloat(customer.total_outstanding_balance) > 0
+                                            ? 'Total Outstanding Balance'
+                                            : 'All Payments Settled'
+                                        }
+                                    </span>
+                                    <span className={`font-bold text-lg ${
+                                        customer.total_outstanding_balance && parseFloat(customer.total_outstanding_balance) > 0
+                                            ? 'text-amber-900'
+                                            : 'text-emerald-900'
+                                    }`}>
+                                        ₱{(parseFloat(customer.total_outstanding_balance) || 0).toFixed(2)}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                {customer.billing_info.map((billing, index) => (
+                                    <div key={index} className="bg-white p-3 rounded border">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-800">{billing.tank_type}</p>
+                                                <p className="text-sm text-gray-500">
+                                                    Pickup: {billing.pickup_date ? new Date(billing.pickup_date).toLocaleDateString() : 'Not set'}
+                                                </p>
+                                            </div>
+                                            <div className="text-right ml-4">
+                                                <Badge 
+                                                    variant={billing.status === 'approved' ? 'default' : 'secondary'}
+                                                    className="text-xs"
+                                                >
+                                                    {billing.status}
+                                                </Badge>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-3 gap-2 text-sm mt-2 pt-2 border-t">
+                                            <div>
+                                                <p className="text-gray-500">Total Cost</p>
+                                                <p className="font-medium">₱{(parseFloat(billing.total_amount) || 0).toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Deposit</p>
+                                                <p className="font-medium">₱{(parseFloat(billing.deposit_amount) || 0).toFixed(2)}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Remaining</p>
+                                                <p className={`font-bold ${
+                                                    parseFloat(billing.remaining_balance) > 0
+                                                        ? 'text-amber-600'
+                                                        : 'text-emerald-600'
+                                                }`}>
+                                                    ₱{(parseFloat(billing.remaining_balance) || 0).toFixed(2)}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

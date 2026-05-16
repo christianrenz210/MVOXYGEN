@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Search, Phone, MapPin, Eye, Edit, Archive, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { Search, Phone, MapPin, Eye, Edit, Archive, RotateCcw, CheckCircle, ChevronLeft, ChevronRight, Filter, Users, AlertCircle, Package } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import AddCustomerDialog from '@/components/add-customer-dialog';
 import EditCustomerDialog from '@/components/edit-customer-dialog';
@@ -66,6 +66,7 @@ interface Customer {
         role?: string;
         profile_image?: string;
         status?: string;
+        updated_at?: string;
     };
 }
 
@@ -90,6 +91,19 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
     const [transactionPage, setTransactionPage] = useState(1);
     const itemsPerPage = 10;
 
+    const handleViewCustomer = async (customer: Customer) => {
+        try {
+            const response = await fetch(`/customer/${customer.id}/edit`);
+            const data = await response.json();
+            setSelectedCustomer(data);
+            setShowViewDialog(true);
+        } catch (error) {
+            console.error('Failed to fetch customer details:', error);
+            setSelectedCustomer(customer);
+            setShowViewDialog(true);
+        }
+    };
+
     // Show success message when it exists
     useEffect(() => {
         if (success) {
@@ -105,6 +119,28 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
     // Handle case where customers might be undefined or null
     const customers = Array.isArray(initialCustomers) ? initialCustomers : [];
     
+    // Function to mask contact number (show only first 2 digits)
+    const maskContactNumber = (contact: string) => {
+        if (!contact || contact.length < 2) return contact;
+        const firstTwo = contact.slice(0, 2);
+        const masked = '*'.repeat(contact.length - 2);
+        return firstTwo + masked;
+    };
+
+    // Function to mask address (show only first word/area)
+    const maskAddress = (address: string) => {
+        if (!address || address.length < 5) return address;
+        // Don't mask "Pickup at Store" addresses
+        if (address.toLowerCase().includes('pickup at store')) return address;
+        const words = address.split(' ');
+        if (words.length === 0) return address;
+        // Show first word and mask the rest
+        const firstWord = words[0];
+        const restLength = address.length - firstWord.length;
+        const masked = '*'.repeat(restLength);
+        return firstWord + masked;
+    };
+
     const filteredCustomers = customers.filter(customer => {
         const matchesSearch = customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             customer.contact_number.includes(searchTerm) ||
@@ -165,56 +201,71 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
 
                 {/* Stats Cards */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Customers</CardTitle>
-                            <div className="h-4 w-4 text-muted-foreground" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{initialCustomers.length}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Registered customers
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Active Customers</CardTitle>
-                            <div className="h-4 w-4 text-green-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{activeCustomers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Currently active
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Inactive Customers</CardTitle>
-                            <div className="h-4 w-4 text-red-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-red-600">{inactiveCustomers}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Currently inactive
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Rentals</CardTitle>
-                            <div className="h-4 w-4 text-blue-600" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">
-                                {initialCustomers.reduce((sum, c) => sum + c.total_rentals, 0)}
+                    {/* Total Customers Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 transition-all hover:shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Total Customers</p>
+                                <p className="text-2xl font-bold text-gray-800">{initialCustomers.length}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Registered customers
+                                </p>
                             </div>
-                            <p className="text-xs text-muted-foreground">
-                                All-time rentals
-                            </p>
-                        </CardContent>
-                    </Card>
+                            <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                                <Users className="w-6 h-6 text-indigo-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Active Customers Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 transition-all hover:shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Active Customers</p>
+                                <p className="text-2xl font-bold text-green-600">{activeCustomers}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Currently active
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <CheckCircle className="w-6 h-6 text-green-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Inactive Customers Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 transition-all hover:shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Inactive Customers</p>
+                                <p className="text-2xl font-bold text-red-600">{inactiveCustomers}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Currently inactive
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                <AlertCircle className="w-6 h-6 text-red-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Total Rentals Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transition-all hover:shadow-xl">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Total Rentals</p>
+                                <p className="text-2xl font-bold text-blue-600">
+                                    {initialCustomers.reduce((sum, c) => sum + c.total_rentals, 0)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                    All-time rentals
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <Package className="w-6 h-6 text-blue-600" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Search and Filter */}
@@ -315,9 +366,9 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                         <TableRow key={customer.id} className="hover:bg-muted/50">
                                             <TableCell>
                                                 <div className="flex items-center">
-                                                    {customer.user?.profile_image ? (
+                                                    {customer.profile_image || customer.user?.profile_image ? (
                                                         <img 
-                                                            src={customer.user.profile_image} 
+                                                            src={`/storage/${customer.profile_image || customer.user?.profile_image}?v=${Date.now()}`} 
                                                             alt={customer.name}
                                                             className="w-10 h-10 rounded-full object-cover"
                                                             onError={(e) => {
@@ -342,14 +393,14 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                             <TableCell>
                                                 <div className="flex items-center gap-2">
                                                     <Phone className="h-4 w-4 text-muted-foreground" />
-                                                    <span>{customer.contact_number}</span>
+                                                    <span className="font-mono">{maskContactNumber(customer.contact_number)}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-2 max-w-[200px]">
                                                     <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
-                                                    <span className="truncate">
-                                                        {customer.delivery_address || customer.address}
+                                                    <span className="truncate font-mono">
+                                                        {maskAddress(customer.delivery_address || customer.address)}
                                                     </span>
                                                 </div>
                                             </TableCell>
@@ -378,10 +429,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                                     <Button 
                                                         variant="ghost" 
                                                         size="sm"
-                                                        onClick={() => {
-                                                            setSelectedCustomer(customer);
-                                                            setShowViewDialog(true);
-                                                        }}
+                                                        onClick={() => handleViewCustomer(customer)}
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
@@ -482,7 +530,13 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                                             currentTransactions.map((transaction) => (
                                                 <TableRow key={transaction.id}>
                                                     <TableCell className="font-medium">{transaction.customer_name}</TableCell>
-                                                    <TableCell>{transaction.tank_id}</TableCell>
+                                                    <TableCell>
+                                                        {transaction.tank_id && transaction.tank_id !== '-' && transaction.tank_id.trim() !== '' ? (
+                                                            <span className="text-blue-600 font-medium">{transaction.tank_id}</span>
+                                                        ) : (
+                                                            <span className="text-gray-400 italic">Not Assigned</span>
+                                                        )}
+                                                    </TableCell>
                                                     <TableCell>
                                                         <Badge
                                                             variant={

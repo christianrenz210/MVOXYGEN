@@ -16,6 +16,7 @@ use App\Http\Controllers\AdminController;
 use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\SupplierOrderController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\SearchController;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
@@ -30,6 +31,9 @@ Route::get('/contact', function () {
 })->name('contact');
 
 Route::middleware(['auth'])->group(function () {
+    // Search Route
+    Route::get('/search', [SearchController::class, 'search'])->name('search');
+
     // User Dashboard Routes
     Route::get('user/dashboard', [UserDashboardController::class, 'index'])->name('user.dashboard');
     Route::get('user/dashboard-test', function () {
@@ -45,6 +49,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('user/rentals/{rentalRequest}', [UserRentalController::class, 'update'])->name('user.rentals.update');
     Route::post('user/rentals/{rentalRequest}/update-image', [UserRentalController::class, 'updateImage'])->name('user.rentals.update-image');
     Route::post('user/rentals/{rentalRequest}/cancel', [UserRentalController::class, 'cancel'])->name('user.rentals.cancel');
+    Route::post('user/rentals/{rentalRequest}/pay-remaining', [UserRentalController::class, 'payRemainingBalance'])->name('user.rentals.pay-remaining');
     Route::get('user/rentals/{rentalRequest}/track', [UserRentalController::class, 'track'])->name('user.rentals.track');
     Route::get('user/history', [UserRentalController::class, 'history'])->name('user.history');
     Route::post('user/history/clear', [UserRentalController::class, 'clearHistory'])->name('user.history.clear');
@@ -60,47 +65,121 @@ Route::middleware(['auth'])->group(function () {
         $period = request()->get('period', 'daily');
         $month = request()->get('month', null); // Format: YYYY-MM
 
-        // Fetch latest activities
-        $activities = \App\Models\Activity::with(['user', 'customer', 'rentalRequest'])
+        // Fetch activities with limited relationships for performance
+        $activities = \App\Models\Activity::with(['user:id,name'])
             ->latest()
             ->limit(20)
             ->get();
 
         // Calculate rental statistics based on period
-        $query = \App\Models\RentalRequest::query();
-
         switch ($period) {
             case 'daily':
-                $query->whereDate('created_at', today());
+                // For daily, use separate optimized queries
+                $pendingCount = \App\Models\RentalRequest::where('status', 'pending')
+                    ->whereDate('created_at', today())
+                    ->count();
+                $approvedCount = \App\Models\RentalRequest::where('status', 'approved')
+                    ->whereHas('rental', function($q) {
+                        $q->whereDate('pickup_date', today());
+                    })
+                    ->count();
+                $rejectedCount = \App\Models\RentalRequest::where('status', 'rejected')
+                    ->whereDate('updated_at', today())
+                    ->count();
+                $completedCount = \App\Models\RentalRequest::where('status', 'completed')
+                    ->whereDate('updated_at', today())
+                    ->count();
                 break;
             case 'weekly':
-                $query->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()]);
+                // Filter each status by its relevant date field within the current week
+                $pendingCount = \App\Models\RentalRequest::where('status', 'pending')
+                    ->whereBetween('created_at', [now()->startOfWeek(), now()->endOfWeek()])
+                    ->count();
+                $approvedCount = \App\Models\RentalRequest::where('status', 'approved')
+                    ->whereHas('rental', function($q) {
+                        $q->whereBetween('pickup_date', [now()->startOfWeek(), now()->endOfWeek()]);
+                    })
+                    ->count();
+                $rejectedCount = \App\Models\RentalRequest::where('status', 'rejected')
+                    ->whereBetween('updated_at', [now()->startOfWeek(), now()->endOfWeek()])
+                    ->count();
+                $completedCount = \App\Models\RentalRequest::where('status', 'completed')
+                    ->whereBetween('updated_at', [now()->startOfWeek(), now()->endOfWeek()])
+                    ->count();
                 break;
             case 'monthly':
-                if ($month) {
-                    $query->whereYear('created_at', substr($month, 0, 4))
-                          ->whereMonth('created_at', substr($month, 5, 2));
-                } else {
-                    $query->whereMonth('created_at', now()->month)
-                          ->whereYear('created_at', now()->year);
-                }
+                // Filter each status by its relevant date field within the selected month
+                $monthDate = $month ? \Carbon\Carbon::createFromFormat('Y-m', $month) : now();
+                $pendingCount = \App\Models\RentalRequest::where('status', 'pending')
+                    ->whereYear('created_at', $monthDate->year)
+                    ->whereMonth('created_at', $monthDate->month)
+                    ->count();
+                $approvedCount = \App\Models\RentalRequest::where('status', 'approved')
+                    ->whereHas('rental', function($q) use ($monthDate) {
+                        $q->whereYear('pickup_date', $monthDate->year)
+                          ->whereMonth('pickup_date', $monthDate->month);
+                    })
+                    ->count();
+                $rejectedCount = \App\Models\RentalRequest::where('status', 'rejected')
+                    ->whereYear('updated_at', $monthDate->year)
+                    ->whereMonth('updated_at', $monthDate->month)
+                    ->count();
+                $completedCount = \App\Models\RentalRequest::where('status', 'completed')
+                    ->whereYear('updated_at', $monthDate->year)
+                    ->whereMonth('updated_at', $monthDate->month)
+                    ->count();
+                break;
+            default:
+                $pendingCount = \App\Models\RentalRequest::where('status', 'pending')->count();
+                $approvedCount = \App\Models\RentalRequest::where('status', 'approved')->count();
+                $rejectedCount = \App\Models\RentalRequest::where('status', 'rejected')->count();
+                $completedCount = \App\Models\RentalRequest::where('status', 'completed')->count();
                 break;
         }
 
-        $pendingCount = (clone $query)->where('status', 'pending')->count();
-        $approvedCount = (clone $query)->where('status', 'approved')->count();
-        $rejectedCount = (clone $query)->where('status', 'rejected')->count();
-        $completedCount = (clone $query)->where('status', 'completed')->count();
+        // Calculate daily sales
+        $todaySales = \App\Models\Sale::whereDate('created_at', today())->sum('total_amount');
+        $todaySalesCount = \App\Models\Sale::whereDate('created_at', today())->count();
 
-        $pendingRentalRequestsQuery = \App\Models\RentalRequest::with(['customer'])
+        $pendingRentalRequests = \App\Models\RentalRequest::with(['customer:id,name'])
             ->where('status', 'pending')
-            ->orderBy('created_at', 'desc');
-
-        $totalPending = $pendingRentalRequestsQuery->count();
-        $pendingRentalRequests = $pendingRentalRequestsQuery
+            ->orderBy('created_at', 'desc')
             ->skip(($page - 1) * $perPage)
             ->take($perPage)
             ->get();
+
+        $totalPending = \App\Models\RentalRequest::where('status', 'pending')->count();
+
+        $salesRangeStart = now()->subDays(6)->startOfDay();
+        $salesRangeEnd = now()->endOfDay();
+
+        $salesAggregates = \App\Models\Sale::selectRaw('DATE(created_at) as sale_date')
+            ->selectRaw('SUM(total_amount) as total_amount')
+            ->selectRaw('COUNT(*) as total_transactions')
+            ->whereBetween('created_at', [$salesRangeStart, $salesRangeEnd])
+            ->groupBy('sale_date')
+            ->get()
+            ->keyBy('sale_date');
+
+        $referenceDate = now();
+        $salesChartData = [];
+        $transactionsChartData = [];
+
+        for ($i = 6; $i >= 0; $i--) {
+            $day = $referenceDate->copy()->subDays($i);
+            $dateKey = $day->toDateString();
+            $aggregate = $salesAggregates->get($dateKey);
+
+            $salesChartData[] = [
+                'label' => $day->format('M d'),
+                'amount' => $aggregate ? (float) $aggregate->total_amount : 0,
+            ];
+
+            $transactionsChartData[] = [
+                'label' => $day->format('M d'),
+                'count' => $aggregate ? (int) $aggregate->total_transactions : 0,
+            ];
+        }
 
         return Inertia::render('dashboard', [
             'breadcrumbs' => [
@@ -113,6 +192,10 @@ Route::middleware(['auth'])->group(function () {
                 'rejected' => $rejectedCount,
                 'completed' => $completedCount,
             ],
+            'dailySales' => [
+                'total' => $todaySales,
+                'count' => $todaySalesCount,
+            ],
             'pendingRentalRequests' => $pendingRentalRequests,
             'rentalPagination' => [
                 'currentPage' => $page,
@@ -120,6 +203,8 @@ Route::middleware(['auth'])->group(function () {
                 'hasNext' => $page < ceil($totalPending / $perPage),
                 'hasPrev' => $page > 1
             ],
+            'salesChartData' => $salesChartData,
+            'transactionsChartData' => $transactionsChartData,
             'tanks' => \App\Models\Tank::orderBy('tank_type')->get(),
             'auth' => [
                 'user' => auth()->user()
@@ -139,9 +224,11 @@ Route::middleware(['auth'])->group(function () {
     // Cashier Routes
     Route::get('cashier', [CashierController::class, 'index'])->name('cashier.index');
     Route::post('cashier/process', [CashierController::class, 'processSale'])->name('cashier.process');
+    Route::post('cashier/end-shift', [CashierController::class, 'endShift'])->name('cashier.end-shift');
     
+        
     // Activity Routes
-    Route::get('activities', [ActivityController::class, 'index'])->name('activities.index');
+    Route::get('activity-logs', [ActivityController::class, 'index'])->name('activity-logs.index');
     
     // Rental Routes
     Route::get('rentals', [RentalController::class, 'index'])->name('rentals.index');
@@ -197,6 +284,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('purchase-order', [PurchaseOrderController::class, 'store'])->name('purchase-order.store');
     Route::post('purchase-order/{order}/ship', [PurchaseOrderController::class, 'ship'])->name('purchase-order.ship');
     Route::post('purchase-order/{order}/receive', [PurchaseOrderController::class, 'receiveItems'])->name('purchase-order.receive');
+    Route::post('purchase-order/{order}/mark-received', [PurchaseOrderController::class, 'markReceived'])->name('purchase-order.mark-received');
+    Route::post('purchase-order/{order}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-order.cancel');
 
     // Supplier Order Routes (Admin)
     Route::get('admin/supplier-orders', [SupplierOrderController::class, 'index'])->name('admin.supplier-orders.index');
@@ -223,6 +312,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('rentals/{rentalRequest}/cancel', [RentalController::class, 'cancel'])->name('rentals.cancel');
     Route::post('rentals/{rentalRequest}/return', [RentalController::class, 'markAsReturned'])->name('rentals.return');
     Route::put('rentals/{rentalRequest}/notes', [RentalController::class, 'updateNotes'])->name('rentals.update-notes');
+    Route::post('rentals/{rentalRequest}/pay-remaining-balance', [RentalController::class, 'payRemainingBalance'])->name('rentals.pay-remaining-balance');
     
     // Notification Routes
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');

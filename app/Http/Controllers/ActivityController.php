@@ -10,20 +10,27 @@ class ActivityController extends Controller
 {
     public function index(Request $request)
     {
-        $filter = $request->get('filter', 'latest'); // 'latest' or 'recent'
+        $perPage = $request->get('per_page', 50); // Default 50 per page
+        $filter = $request->get('filter', 'all');
         
         $query = Activity::with(['user', 'customer', 'rentalRequest']);
         
-        if ($filter === 'latest') {
-            $activities = $query->latest()->limit(20)->get();
-        } elseif ($filter === 'recent') {
-            $activities = $query->recent(24)->latest()->get();
-        } else {
-            $activities = $query->latest()->limit(20)->get();
+        // Filter by action type if specified
+        if ($filter !== 'all' && $filter) {
+            $query->where('action', $filter);
         }
         
-        return response()->json([
-            'activities' => $activities
+        // Get ALL activities with pagination
+        $activities = $query->latest()->paginate($perPage);
+        
+        return Inertia::render('admin/activity-logs', [
+            'logs' => $activities->items(),
+            'pagination' => [
+                'current_page' => $activities->currentPage(),
+                'last_page' => $activities->lastPage(),
+                'per_page' => $activities->perPage(),
+                'total' => $activities->total(),
+            ]
         ]);
     }
 }

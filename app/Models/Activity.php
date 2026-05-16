@@ -17,12 +17,21 @@ class Activity extends Model
         'action',
         'description',
         'type',
+        'ip_address',
+        'user_agent',
     ];
 
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
+
+    protected $appends = ['user_name'];
+
+    public function getUserNameAttribute(): string
+    {
+        return $this->user?->name ?? 'Unknown User';
+    }
 
     public function user(): BelongsTo
     {

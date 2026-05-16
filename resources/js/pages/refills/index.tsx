@@ -5,9 +5,13 @@ import { Users, Package, Calendar, Phone, CheckCircle, AlertCircle, Eye, Edit, C
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import ConfirmModal from '@/components/confirm-modal';
+import AlertModal from '@/components/alert-modal';
+import PromptModal from '@/components/prompt-modal';
 
 interface RentalRequest {
     id: number;
+    tracking_number?: string;
     customer: {
         id: number;
         name: string;
@@ -18,6 +22,7 @@ interface RentalRequest {
         name: string;
     };
     tank_type: string;
+    assigned_tank_id?: string;
     quantity: number;
     start_date: string;
     end_date: string;
@@ -57,6 +62,29 @@ export default function RefillsIndex({ rentalRequests }: Props) {
         tank_type: '',
         refill_period: '',
         refill_cost: ''
+    });
+
+    // Modal states
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showPromptModal, setShowPromptModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+    const [promptConfig, setPromptConfig] = useState({
+        title: '',
+        message: '',
+        placeholder: '',
+        onConfirm: (value: string) => {},
+        type: 'info' as 'info' | 'warning' | 'danger'
     });
 
     const handleNewRefillClick = () => {
@@ -128,24 +156,49 @@ export default function RefillsIndex({ rentalRequests }: Props) {
     };
 
     const handleApprove = (id: number) => {
-        if (confirm('Are you sure you want to approve this refill request?')) {
-            router.post(`/refills/${id}/approve`, {}, {
-                onSuccess: () => {
-                    alert('Refill request approved successfully!');
-                }
-            });
-        }
+        showConfirm(
+            'Approve Refill Request',
+            'Are you sure you want to approve this refill request?',
+            () => {
+                router.post(`/refills/${id}/approve`, {}, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Refill request approved successfully!', 'success');
+                    }
+                });
+            },
+            'warning'
+        );
     };
 
     const handleReject = (id: number) => {
-        const reason = prompt('Please provide a reason for rejection:');
-        if (reason) {
-            router.post(`/refills/${id}/reject`, { rejected_reason: reason }, {
-                onSuccess: () => {
-                    alert('Refill request rejected successfully!');
-                }
-            });
-        }
+        showPrompt(
+            'Reject Refill Request',
+            'Please provide a reason for rejection:',
+            'Enter rejection reason...',
+            (reason) => {
+                router.post(`/refills/${id}/reject`, { rejected_reason: reason }, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Refill request rejected successfully!', 'success');
+                    }
+                });
+            },
+            'danger'
+        );
+    };
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
+    const showPrompt = (title: string, message: string, placeholder: string, onConfirm: (value: string) => void, type: 'info' | 'warning' | 'danger' = 'info') => {
+        setPromptConfig({ title, message, placeholder, onConfirm, type });
+        setShowPromptModal(true);
     };
 
     const getStatusBadge = (status: string) => {
@@ -282,7 +335,18 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 text-gray-800">{request.tank_type}</td>
-                                        <td className="py-3 px-4 text-gray-800">{request.product?.id || '-'}</td>
+                                        <td className="py-3 px-4">
+                                            {request.assigned_tank_id && request.assigned_tank_id !== '-' && request.assigned_tank_id.trim() !== '' ? (
+                                                <span className="text-blue-600 font-medium">{request.assigned_tank_id}</span>
+                                            ) : (
+                                                <div className="text-gray-500">
+                                                    <span className="italic">Pending Assignment</span>
+                                                    {request.tracking_number && (
+                                                        <div className="text-xs text-gray-400 mt-1">Ref: {request.tracking_number}</div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
                                         <td className="py-3 px-4">
                                             <div className="text-gray-800">
                                                 <div>{new Date(request.start_date).toLocaleDateString()}</div>
@@ -505,6 +569,42 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                 </div>,
                 document.body
             )}
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
+
+            {/* Prompt Modal */}
+            <PromptModal
+                isOpen={showPromptModal}
+                onClose={() => setShowPromptModal(false)}
+                onConfirm={(value) => {
+                    promptConfig.onConfirm(value);
+                    setShowPromptModal(false);
+                }}
+                title={promptConfig.title}
+                message={promptConfig.message}
+                placeholder={promptConfig.placeholder}
+                type={promptConfig.type}
+            />
         </AppLayout>
     );
 }

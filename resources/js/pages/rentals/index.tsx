@@ -1,11 +1,15 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Users, Package, Calendar, Phone, CheckCircle, AlertCircle, Eye, Edit, Clock, RotateCcw } from 'lucide-react';
+import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock, Users, AlertCircle, CheckCircle, Phone, RotateCcw, ChevronLeft, ChevronRight, XCircle, Eye } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import AlertModal from '@/components/alert-modal';
+import ConfirmModal from '@/components/confirm-modal';
+import PromptModal from '@/components/prompt-modal';
 import { useState } from 'react';
+import { formatPhoneNumber } from '@/utils/phone';
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'completed';
+type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'completed' | 'canceled';
 
 interface Rental {
     id: number;
@@ -34,7 +38,7 @@ interface RentalRequest {
     purpose: string;
     contact_number: string;
     address: string;
-    status: 'pending' | 'approved' | 'rejected' | 'completed';
+    status: 'pending' | 'approved' | 'rejected' | 'completed' | 'canceled';
     admin_notes?: string;
     rejected_reason?: string;
     created_at: string;
@@ -53,6 +57,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
     
+    // New filter states
+    const [customerNameSort, setCustomerNameSort] = useState<'asc' | 'desc' | null>(null);
+    const [selectedTankType, setSelectedTankType] = useState<string>('all');
+    
     // Deposit modal state
     const [showDepositModal, setShowDepositModal] = useState(false);
     const [selectedRequest, setSelectedRequest] = useState<number | null>(null);
@@ -61,16 +69,69 @@ export default function RentalIndex({ rentalRequests }: Props) {
     const [depositPaymentMethod, setDepositPaymentMethod] = useState('cash');
     const [depositReferenceNumber, setDepositReferenceNumber] = useState('');
 
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
+    // Confirm modal state
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    // Prompt modal state
+    const [showPromptModal, setShowPromptModal] = useState(false);
+    const [promptConfig, setPromptConfig] = useState({
+        title: '',
+        message: '',
+        placeholder: '',
+        onConfirm: (value: string) => {},
+        type: 'info' as 'info' | 'warning' | 'danger'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
+    const showPrompt = (title: string, message: string, placeholder: string, onConfirm: (value: string) => void, type: 'info' | 'warning' | 'danger' = 'info') => {
+        setPromptConfig({ title, message, placeholder, onConfirm, type });
+        setShowPromptModal(true);
+    };
+
     // Reset page when filter changes
     const handleFilterChange = (filter: StatusFilter) => {
         setActiveFilter(filter);
         setCurrentPage(1);
     };
 
-    // Get filtered requests
-    const filteredRequests = rentalRequests.filter(request => 
-        activeFilter === 'all' || request.status === activeFilter
-    );
+    // Get unique tank types
+    const uniqueTankTypes = Array.from(new Set(rentalRequests.map(r => r.tank_type))).sort();
+
+    // Get filtered and sorted requests
+    const filteredRequests = rentalRequests.filter(request => {
+        const statusMatch = activeFilter === 'all' || request.status === activeFilter;
+        const tankTypeMatch = selectedTankType === 'all' || request.tank_type === selectedTankType;
+        return statusMatch && tankTypeMatch;
+    }).sort((a, b) => {
+        if (customerNameSort) {
+            const comparison = a.customer.name.localeCompare(b.customer.name);
+            return customerNameSort === 'asc' ? comparison : -comparison;
+        }
+        return 0;
+    });
 
     // Pagination calculations
     const totalPages = Math.ceil(filteredRequests.length / itemsPerPage);
@@ -88,7 +149,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
     const validateDepositAmount = (amount: string) => {
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount < 1000) {
-            setDepositError('Minimum deposit amount is PHP 1,000');
+            setDepositError('Minimum deposit amount is ₱1,000');
             return false;
         }
         setDepositError('');
@@ -109,24 +170,17 @@ export default function RentalIndex({ rentalRequests }: Props) {
             return;
         }
 
-        const formData = {
-            deposit_amount: parseFloat(depositAmount),
-            deposit_payment_method: depositPaymentMethod,
-            deposit_reference_number: depositReferenceNumber
-        };
-
-        router.post(`/rentals/${selectedRequest}/approve`, formData, {
+        router.post(`/rentals/${selectedRequest}/approve`, {
+            deposit_amount: depositAmount,
+            payment_method: depositPaymentMethod,
+            reference_number: depositReferenceNumber
+        }, {
             onSuccess: () => {
-                setShowDepositModal(false);
-                setSelectedRequest(null);
-                setDepositAmount('');
-                setDepositError('');
-                alert('Rental request approved successfully!');
+                showAlert('Success', 'Rental request approved successfully!', 'success');
+                handleCloseModal();
             },
-            onError: (errors: any) => {
-                if (errors.deposit_amount) {
-                    setDepositError(errors.deposit_amount[0]);
-                }
+            onError: (errors) => {
+                setDepositError(errors.deposit_amount || 'Failed to approve request. Please try again.');
             }
         });
     };
@@ -139,7 +193,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
         if (depositAmount !== '') {
             if (isNaN(numAmount) || numAmount < 1000) {
                 // Don't close modal if deposit amount is below minimum
-                setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+                setDepositError('Please enter a valid deposit amount (minimum ₱1,000) before closing.');
                 console.log('Modal close blocked - invalid deposit amount');
                 return;
             }
@@ -154,24 +208,49 @@ export default function RentalIndex({ rentalRequests }: Props) {
     };
 
     const handleReject = (id: number) => {
-        const reason = prompt('Please provide a reason for rejection:');
-        if (reason) {
-            router.post(`/rentals/${id}/reject`, { rejected_reason: reason }, {
-                onSuccess: () => {
-                    alert('Rental request rejected successfully!');
-                }
-            });
-        }
+        showPrompt(
+            'Reject Rental Request',
+            'Please provide a reason for rejection:',
+            'Enter rejection reason...',
+            (reason) => {
+                router.post(`/rentals/${id}/reject`, { rejected_reason: reason }, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Rental request rejected successfully!', 'success');
+                    }
+                });
+            },
+            'danger'
+        );
+    };
+
+    const handleCancel = (id: number) => {
+        showConfirm(
+            'Cancel Rental Request',
+            'Are you sure you want to cancel this rental request?',
+            () => {
+                router.post(`/rentals/${id}/cancel`, {}, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Rental request canceled successfully!', 'success');
+                    }
+                });
+            },
+            'danger'
+        );
     };
 
     const handleReturn = (id: number) => {
-        if (confirm('Are you sure you want to mark this rental as returned?')) {
-            router.post(`/rentals/${id}/return`, {}, {
-                onSuccess: () => {
-                    alert('Rental marked as returned successfully!');
-                }
-            });
-        }
+        showConfirm(
+            'Mark as Returned',
+            'Are you sure you want to mark this rental as returned?',
+            () => {
+                router.post(`/rentals/${id}/return`, {}, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Rental marked as returned successfully!', 'success');
+                    }
+                });
+            },
+            'warning'
+        );
     };
 
     const getStatusBadge = (status: string) => {
@@ -179,7 +258,8 @@ export default function RentalIndex({ rentalRequests }: Props) {
             pending: 'bg-yellow-100 text-yellow-800',
             approved: 'bg-green-100 text-green-800',
             rejected: 'bg-red-100 text-red-800',
-            completed: 'bg-blue-100 text-blue-800'
+            completed: 'bg-blue-100 text-blue-800',
+            canceled: 'bg-gray-100 text-gray-800'
         };
         return badges[status as keyof typeof badges] || 'bg-gray-100 text-gray-800';
     };
@@ -205,7 +285,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                 </div>
 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-8">
                     {/* All Requests Card */}
                     <div 
                         onClick={() => handleFilterChange('all')}
@@ -303,17 +383,99 @@ export default function RentalIndex({ rentalRequests }: Props) {
                             </div>
                         </div>
                     </div>
+
+                    {/* Canceled Card */}
+                    <div 
+                        onClick={() => handleFilterChange('canceled')}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                            activeFilter === 'canceled' ? 'border-gray-600 ring-2 ring-gray-200' : 'border-gray-500'
+                        }`}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Canceled</p>
+                                <p className="text-2xl font-bold text-gray-800">
+                                    {rentalRequests.filter(r => r.status === 'canceled').length}
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                                <XCircle className="w-6 h-6 text-gray-600" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Rental Requests Table */}
                 <div className="bg-white rounded-xl shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">
-                        {activeFilter === 'all' ? 'All Rental Requests' : 
-                         activeFilter === 'pending' ? 'Pending Requests' :
-                         activeFilter === 'approved' ? 'Approved Requests' :
-                         activeFilter === 'rejected' ? 'Rejected Requests' :
-                         'Completed Requests'}
-                    </h2>
+                    <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-xl font-bold text-gray-800">
+                            {activeFilter === 'all' ? 'All Rental Requests' : 
+                             activeFilter === 'pending' ? 'Pending Requests' :
+                             activeFilter === 'approved' ? 'Approved Requests' :
+                             activeFilter === 'rejected' ? 'Rejected Requests' :
+                             activeFilter === 'completed' ? 'Completed Requests' :
+                             'Canceled Requests'}
+                        </h2>
+                    </div>
+
+                    {/* Filter Controls */}
+                    <div className="bg-gray-50 rounded-lg p-4 mb-4">
+                        <div className="flex flex-wrap gap-4">
+                            {/* Customer Name Sort */}
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">Customer Name:</label>
+                                <select
+                                    value={customerNameSort || ''}
+                                    onChange={(e) => {
+                                        setCustomerNameSort(e.target.value as 'asc' | 'desc' | null);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                    <option value="">Default</option>
+                                    <option value="asc">A-Z</option>
+                                    <option value="desc">Z-A</option>
+                                </select>
+                            </div>
+
+                            {/* Tank Type Filter */}
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">Tank Type:</label>
+                                <select
+                                    value={selectedTankType}
+                                    onChange={(e) => {
+                                        setSelectedTankType(e.target.value);
+                                        setCurrentPage(1);
+                                    }}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                    <option value="all">All Tank Types</option>
+                                    {uniqueTankTypes.map(tankType => (
+                                        <option key={tankType} value={tankType}>{tankType}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Status Filter */}
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm font-medium text-gray-700">Status:</label>
+                                <select
+                                    value={activeFilter}
+                                    onChange={(e) => {
+                                        handleFilterChange(e.target.value as StatusFilter);
+                                    }}
+                                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                    <option value="all">All Statuses</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="approved">Approved</option>
+                                    <option value="rejected">Rejected</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="canceled">Canceled</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
@@ -326,7 +488,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Contact</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Return</th>
+                                    {activeFilter !== 'canceled' && activeFilter !== 'rejected' && <th className="text-left py-3 px-4 font-semibold text-gray-700">Return</th>}
                                 </tr>
                             </thead>
                             <tbody>
@@ -350,7 +512,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                             <div className="text-gray-800">
                                                 <div className="flex items-center">
                                                     <Phone className="w-3 h-3 mr-1 text-gray-400" />
-                                                    {request.contact_number}
+                                                    {formatPhoneNumber(request.contact_number)}
                                                 </div>
                                             </div>
                                         </td>
@@ -360,7 +522,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                             </span>
                                         </td>
                                         <td className="py-3 px-4">
-                                            <div className="flex space-x-2">
+                                            <div className="flex flex-wrap gap-2">
                                                 <a
                                                     href={request.request_type === 'refill' ? `/refills/${request.id}` : `/rentals/${request.id}`}
                                                     className="text-blue-600 hover:text-blue-800"
@@ -384,10 +546,18 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                                         >
                                                             <AlertCircle className="w-4 h-4" />
                                                         </button>
+                                                        <button
+                                                            onClick={() => handleCancel(request.id)}
+                                                            className="text-gray-500 hover:text-gray-700"
+                                                            title="Cancel Request"
+                                                        >
+                                                            <XCircle className="w-4 h-4" />
+                                                        </button>
                                                     </>
                                                 )}
                                             </div>
                                         </td>
+                                        {activeFilter !== 'canceled' && activeFilter !== 'rejected' && (
                                         <td className="py-3 px-4">
                                             {request.status === 'approved' && (
                                                 <button
@@ -403,6 +573,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                                 <span className="text-xs text-gray-500">Returned</span>
                                             )}
                                         </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -473,7 +644,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                             <h2 className="text-xl font-bold text-gray-800">Deposit Information</h2>
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">
                                 <p className="text-xs text-yellow-800 font-medium">
-                                    Minimum deposit: PHP 1,000
+                                    Minimum deposit: ₱1,000
                                 </p>
                             </div>
                         </div>
@@ -498,16 +669,16 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                                 {request.rental?.deposit_amount !== null && request.rental?.deposit_amount !== undefined ? (
                                                     <div>
                                                         <span className={request.rental.deposit_amount < 1000 ? "text-red-600 font-semibold" : ""}>
-                                                            PHP {request.rental.deposit_amount.toFixed(2)}
+                                                            ₱{request.rental.deposit_amount.toFixed(2)}
                                                         </span>
                                                         {request.rental.deposit_amount < 1000 && (
                                                             <div className="text-xs text-red-500 mt-1">
-                                                                Below minimum (PHP 1,000)
+                                                                Below minimum (₱1,000)
                                                             </div>
                                                         )}
                                                     </div>
                                                 ) : (
-                                                    <span className="text-red-600 font-semibold">PHP 0.00</span>
+                                                    <span className="text-red-600 font-semibold">₱0.00</span>
                                                 )}
                                             </td>
                                             <td className="py-3 px-4 text-gray-800">
@@ -555,7 +726,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                         const numAmount = parseFloat(depositAmount);
                         if (depositAmount !== '' && (isNaN(numAmount) || numAmount < 1000)) {
                             e.stopPropagation();
-                            setDepositError('Please enter a valid deposit amount (minimum PHP 1,000) before closing.');
+                            setDepositError('Please enter a valid deposit amount (minimum ₱1,000) before closing.');
                         }
                     }}>
                         <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md" onClick={(e) => e.stopPropagation()}>
@@ -574,12 +745,12 @@ export default function RentalIndex({ rentalRequests }: Props) {
                             <div className="mb-4">
                                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
                                     <p className="text-sm text-yellow-800 font-medium">
-                                        Minimum deposit: PHP 1,000
+                                        Minimum deposit: ₱1,000
                                     </p>
                                 </div>
 
                                 <div className="mb-4">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Amount (PHP)</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Deposit Amount (₱)</label>
                                     <input
                                         type="number"
                                         value={depositAmount}
@@ -643,6 +814,42 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     </div>
                 )}
             </div>
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
+
+            {/* Prompt Modal */}
+            <PromptModal
+                isOpen={showPromptModal}
+                onClose={() => setShowPromptModal(false)}
+                onConfirm={(value) => {
+                    promptConfig.onConfirm(value);
+                    setShowPromptModal(false);
+                }}
+                title={promptConfig.title}
+                message={promptConfig.message}
+                placeholder={promptConfig.placeholder}
+                type={promptConfig.type}
+            />
         </AppLayout>
     );
 }

@@ -190,6 +190,10 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
                         <span style="flex: 3;">Subtotal:</span>
                         <span style="flex: 1; text-align: right;">${formatCurrency(subtotal)}</span>
                     </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span style="flex: 3;">Tax (12%):</span>
+                        <span style="flex: 1; text-align: right;">${formatCurrency(subtotal * 0.12)}</span>
+                    </div>
                     <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 12px; margin-top: 4px;">
                         <span style="flex: 3;">TOTAL:</span>
                         <span style="flex: 1; text-align: right;">${formatCurrency(total)}</span>
@@ -329,6 +333,10 @@ export default function ReceiptPrint({ isOpen, onClose, saleData }: ReceiptPrint
                             <div className="flex justify-between">
                                 <span className="flex-[3]">Subtotal:</span>
                                 <span className="flex-1 text-right">{formatCurrency(subtotal)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                                <span className="flex-[3]">Tax (12%):</span>
+                                <span className="flex-1 text-right">{formatCurrency(subtotal * 0.12)}</span>
                             </div>
                             <div className="flex justify-between font-bold text-xs mt-1">
                                 <span className="flex-[3]">TOTAL:</span>

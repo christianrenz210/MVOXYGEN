@@ -58,7 +58,7 @@ class CustomerController extends Controller
         // Fetch all customers except Admin with User relationship and latest delivery address
         $customersWithRentals = Customer::where('name', '!=', 'Admin')
             ->select('id', 'name', 'contact_number', 'address', 'status', 'total_rentals', 'created_at', 'updated_at', 'profile_image')
-            ->with(['user', 'rentalRequests' => function ($query) {
+            ->with(['user:id,name,email,phone,role,profile_image,status,updated_at', 'rentalRequests' => function ($query) {
                 $query->whereNotNull('address')
                     ->orderBy('created_at', 'desc')
                     ->limit(1);
@@ -215,8 +215,47 @@ class CustomerController extends Controller
      */
     public function edit(string $id)
     {
-        $customer = Customer::findOrFail($id);
-        return response()->json($customer);
+        $customer = Customer::with(['user:id,name,email,phone,role,profile_image,status,updated_at', 'rentalRequests' => function ($query) {
+            $query->whereNotNull('address')->orderBy('created_at', 'desc')->limit(1);
+        }, 'rentalRequests.rental'])->findOrFail($id);
+        
+        // Get customer's latest delivery address from rental requests
+        $latestRentalRequest = $customer->rentalRequests->first();
+        if ($latestRentalRequest && $latestRentalRequest->address) {
+            $customer->delivery_address = $latestRentalRequest->address;
+        } else {
+            $customer->delivery_address = $customer->address;
+        }
+        
+        // Calculate billing information
+        $billingInfo = [];
+        if ($customer->rentalRequests) {
+            foreach ($customer->rentalRequests as $request) {
+                if ($request->rental && $request->status === 'approved') {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    // Show all approved rentals, regardless of remaining balance
+                    $billingInfo[] = [
+                        'rental_request_id' => $request->id,
+                        'tank_type' => $request->tank_type,
+                        'total_amount' => $totalAmount,
+                        'deposit_amount' => $depositAmount,
+                        'remaining_balance' => $remainingBalance,
+                        'status' => $request->status,
+                        'pickup_date' => $rental->pickup_date,
+                    ];
+                }
+            }
+        }
+        
+        $customerData = $customer->toArray();
+        $customerData['billing_info'] = $billingInfo;
+        $customerData['total_outstanding_balance'] = array_sum(array_column($billingInfo, 'remaining_balance'));
+        
+        return response()->json($customerData);
     }
 
     /**

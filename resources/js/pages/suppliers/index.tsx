@@ -5,6 +5,7 @@ import { Building2, MapPin, Phone, Mail, Plus, Edit, Trash2, AlertCircle, Packag
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { useState } from 'react';
+import ConfirmModal from '@/components/confirm-modal';
 
 interface Supplier {
     id: number;
@@ -40,15 +41,33 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function SuppliersIndex({ suppliers }: Props) {
+    // Modal states
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
 
     const handleDelete = (id: number) => {
-        if (confirm('Are you sure you want to delete this supplier?')) {
-            router.delete(`/suppliers/${id}`, {
-                onSuccess: () => {
-                    router.reload();
-                }
-            });
-        }
+        showConfirm(
+            'Delete Supplier',
+            'Are you sure you want to delete this supplier?',
+            () => {
+                router.delete(`/suppliers/${id}`, {
+                    onSuccess: () => {
+                        router.reload();
+                    }
+                });
+            },
+            'danger'
+        );
     };
 
     const handleToggleActive = (id: number, isActive: boolean) => {
@@ -166,7 +185,19 @@ export default function SuppliersIndex({ suppliers }: Props) {
                     </div>
                 )}
 
-                                
+                {/* Confirm Modal */}
+                <ConfirmModal
+                    isOpen={showConfirmModal}
+                    onClose={() => setShowConfirmModal(false)}
+                    onConfirm={() => {
+                        confirmConfig.onConfirm();
+                        setShowConfirmModal(false);
+                    }}
+                    title={confirmConfig.title}
+                    message={confirmConfig.message}
+                    type={confirmConfig.type}
+                />
+
             </div>
         </AppLayout>
     );

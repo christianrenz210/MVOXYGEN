@@ -4,6 +4,9 @@ import { Head, router } from '@inertiajs/react';
 import { Users, Package, Calendar, Phone, MapPin, CheckCircle, AlertCircle, ArrowLeft, Edit, X, RefreshCw, DollarSign } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { useState } from 'react';
+import ConfirmModal from '@/components/confirm-modal';
+import AlertModal from '@/components/alert-modal';
+import PromptModal from '@/components/prompt-modal';
 
 interface Customer {
     id: number;
@@ -63,13 +66,36 @@ export default function RefillShow({ rentalRequest }: Props) {
         notes: ''
     });
 
+    // Modal states
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [showPromptModal, setShowPromptModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+    const [promptConfig, setPromptConfig] = useState({
+        title: '',
+        message: '',
+        placeholder: '',
+        onConfirm: (value: string) => {},
+        type: 'info' as 'info' | 'warning' | 'danger'
+    });
+
     const handleApprove = () => {
         handleOpenDepositModal();
     };
 
     const handleUpdateDeposit = () => {
         if (!rentalRequest.rental) {
-            alert('No rental record found');
+            showAlert('Error', 'No rental record found', 'error');
             return;
         }
         router.post(`/rentals/${rentalRequest.rental.id}/deposit`, {
@@ -120,27 +146,37 @@ export default function RefillShow({ rentalRequest }: Props) {
     };
 
     const handleReject = () => {
-        const reason = prompt('Please provide a reason for rejection:');
-        if (reason) {
-            router.post(`/refills/${rentalRequest.id}/reject`, { rejected_reason: reason }, {
-                onSuccess: () => {
-                    router.reload();
-                }
-            });
-        }
+        showPrompt(
+            'Reject Refill Request',
+            'Please provide a reason for rejection:',
+            'Enter rejection reason...',
+            (reason) => {
+                router.post(`/refills/${rentalRequest.id}/reject`, { rejected_reason: reason }, {
+                    onSuccess: () => {
+                        router.reload();
+                    }
+                });
+            },
+            'danger'
+        );
     };
 
     const handleMarkAsReturned = () => {
-        if (confirm('Are you sure you want to mark this refill as returned/completed?')) {
-            router.post(`/refills/${rentalRequest.id}/return`, {}, {
-                onSuccess: () => {
-                    router.reload();
-                },
-                onError: (errors) => {
-                    alert('Error marking as returned: ' + (errors.message || 'Please try again.'));
-                }
-            });
-        }
+        showConfirm(
+            'Mark as Returned',
+            'Are you sure you want to mark this refill as returned/completed?',
+            () => {
+                router.post(`/refills/${rentalRequest.id}/return`, {}, {
+                    onSuccess: () => {
+                        router.reload();
+                    },
+                    onError: (errors) => {
+                        showAlert('Error', 'Error marking as returned: ' + (errors.message || 'Please try again.'), 'error');
+                    }
+                });
+            },
+            'warning'
+        );
     };
 
     const updateNotes = (notes: string) => {
@@ -149,6 +185,21 @@ export default function RefillShow({ rentalRequest }: Props) {
                 router.reload();
             }
         });
+    };
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
+    const showPrompt = (title: string, message: string, placeholder: string, onConfirm: (value: string) => void, type: 'info' | 'warning' | 'danger' = 'info') => {
+        setPromptConfig({ title, message, placeholder, onConfirm, type });
+        setShowPromptModal(true);
     };
 
     const getStatusBadge = (status: string) => {
@@ -393,7 +444,7 @@ export default function RefillShow({ rentalRequest }: Props) {
                                         <label className="text-sm text-gray-500">Deposit Amount</label>
                                         <p className="font-medium text-gray-800">
                                             {rentalRequest.rental.deposit_amount !== null && rentalRequest.rental.deposit_amount !== undefined ?
-                                                `PHP ${rentalRequest.rental.deposit_amount}` :
+                                                `₱${rentalRequest.rental.deposit_amount}` :
                                                 'Not set'
                                             }
                                         </p>
@@ -514,6 +565,42 @@ export default function RefillShow({ rentalRequest }: Props) {
                     </div>
                 </div>
             )}
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
+
+            {/* Prompt Modal */}
+            <PromptModal
+                isOpen={showPromptModal}
+                onClose={() => setShowPromptModal(false)}
+                onConfirm={(value) => {
+                    promptConfig.onConfirm(value);
+                    setShowPromptModal(false);
+                }}
+                title={promptConfig.title}
+                message={promptConfig.message}
+                placeholder={promptConfig.placeholder}
+                type={promptConfig.type}
+            />
         </AppLayout>
     );
 }

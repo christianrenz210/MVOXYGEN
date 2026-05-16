@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import ForgotPasswordModal from '@/components/forgot-password-modal';
+import AlertModal from '@/components/alert-modal';
 
 // TypeScript declaration for Google reCAPTCHA
 declare global {
@@ -49,6 +50,19 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
     const [isRecaptchaLoaded, setIsRecaptchaLoaded] = useState(false);
     const [recaptchaWidgetId, setRecaptchaWidgetId] = useState<number | null>(null);
     const [showForgotPassword, setShowForgotPassword] = useState(false);
+
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
 
     // Load reCAPTCHA script
     useEffect(() => {
@@ -141,7 +155,7 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
         
         // Temporarily bypass reCAPTCHA validation for development
         if (!recaptchaToken && !import.meta.env.DEV) {
-            alert('Please complete the reCAPTCHA verification.');
+            showAlert('Error', 'Please complete the reCAPTCHA verification.', 'error');
             return;
         }
         
@@ -376,6 +390,15 @@ export default function Login({ status, canResetPassword, error }: LoginProps) {
         <ForgotPasswordModal 
             open={showForgotPassword}
             onOpenChange={setShowForgotPassword}
+        />
+
+        {/* Alert Modal */}
+        <AlertModal
+            isOpen={showAlertModal}
+            onClose={() => setShowAlertModal(false)}
+            title={alertConfig.title}
+            message={alertConfig.message}
+            type={alertConfig.type}
         />
         </div>
     );

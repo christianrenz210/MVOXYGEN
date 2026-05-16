@@ -128,6 +128,11 @@ class User extends Authenticatable
             return 'supplier.dashboard';
         }
         
+        // Cashier users go directly to cashier page
+        if ($this->role === 'cashier') {
+            return 'cashier.index';
+        }
+        
         // Customer users go to user dashboard
         return 'user.dashboard';
     }

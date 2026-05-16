@@ -1,6 +1,6 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router } from '@inertiajs/react';
+import { Head, router, Link } from '@inertiajs/react';
 import { Package, Calendar, CheckCircle, AlertCircle, Clock, PlusCircle, History, TrendingUp, MapPin, X, DollarSign } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import DeliveryTrackingMap from '@/components/delivery-tracking-map';
@@ -87,6 +87,8 @@ interface Props {
     activeRentals: ActiveRental[];
     stats: Stats;
     tankTypes: string[];
+    billingInfo?: any[];
+    totalOutstandingBalance?: number;
     auth: {
         user: {
             id: number;
@@ -97,7 +99,7 @@ interface Props {
     };
 }
 
-export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', href: '/user/dashboard' }], rentalRequests, activeRentals, stats, tankTypes, auth }: Props) {
+export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', href: '/user/dashboard' }], rentalRequests, activeRentals, stats, tankTypes, billingInfo = [], totalOutstandingBalance = 0, auth }: Props) {
     const getStatusBadge = (status: string) => {
         const badges = {
             pending: 'bg-yellow-100 text-yellow-800',
@@ -282,6 +284,87 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
                         </a>
                     </div>
                 </div>
+
+                {/* Payment Billing */}
+                {billingInfo && billingInfo.length > 0 && (
+                    <div className={`bg-card rounded-xl shadow-lg p-6 mb-8 dark:shadow-xl ${quickActionsVisible ? 'animate-in fade-in slide-in-from-bottom-4 duration-1000' : 'opacity-0'}`}>
+                        <h2 className="text-xl font-bold text-foreground mb-4 flex items-center">
+                            <DollarSign className="w-5 h-5 mr-2 text-green-600" />
+                            Payment Billing
+                        </h2>
+                        
+                        <div className={`mb-4 p-4 rounded-lg ${
+                            totalOutstandingBalance && totalOutstandingBalance > 0
+                                ? 'bg-amber-50 border border-amber-200 dark:bg-amber-900/20 dark:border-amber-800'
+                                : 'bg-emerald-50 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800'
+                        }`}>
+                            <div className="flex items-center justify-between">
+                                <span className={`font-medium ${
+                                    totalOutstandingBalance && totalOutstandingBalance > 0
+                                        ? 'text-amber-800 dark:text-amber-200'
+                                        : 'text-emerald-800 dark:text-emerald-200'
+                                }`}>
+                                    {totalOutstandingBalance && totalOutstandingBalance > 0
+                                        ? 'Total Outstanding Balance'
+                                        : 'All Payments Settled'
+                                    }
+                                </span>
+                                <span className={`font-bold text-lg ${
+                                    totalOutstandingBalance && totalOutstandingBalance > 0
+                                        ? 'text-amber-900 dark:text-amber-100'
+                                        : 'text-emerald-900 dark:text-emerald-100'
+                                }`}>
+                                    ₱{(parseFloat(totalOutstandingBalance) || 0).toFixed(2)}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            {billingInfo.map((billing, index) => (
+                                <Link 
+                                    key={index} 
+                                    href={`/user/rentals/${billing.rental_request_id}`}
+                                    className="block border border-border rounded-lg p-4 hover:shadow-md transition-shadow hover:bg-accent/50"
+                                >
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-foreground">{billing.tank_type}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                Pickup: {billing.pickup_date ? new Date(billing.pickup_date).toLocaleDateString() : 'Not set'}
+                                            </p>
+                                        </div>
+                                        <span className={`text-xs px-2 py-1 rounded-full ${
+                                            billing.status === 'approved' ? 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-200' :
+                                            'bg-gray-100 text-gray-800 dark:bg-gray-900/50 dark:text-gray-200'
+                                        }`}>
+                                            {billing.status}
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-3 text-sm pt-3 border-t border-border">
+                                        <div>
+                                            <p className="text-muted-foreground">Total Cost</p>
+                                            <p className="font-medium text-foreground">₱{(parseFloat(billing.total_amount) || 0).toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500">Deposit Paid</p>
+                                            <p className="font-medium text-foreground">₱{(parseFloat(billing.deposit_amount) || 0).toFixed(2)}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-gray-500">Remaining Balance</p>
+                                            <p className={`font-medium ${
+                                                billing.remaining_balance > 0
+                                                    ? 'text-amber-600 dark:text-amber-400'
+                                                    : 'text-emerald-600 dark:text-emerald-400'
+                                            }`}>
+                                                ₱{(parseFloat(billing.remaining_balance) || 0).toFixed(2)}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Active Rentals */}
                 {activeRentals.length > 0 && (

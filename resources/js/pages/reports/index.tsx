@@ -2,8 +2,9 @@ import AppLayout from '@/layouts/app-layout';
 import React, { useState } from 'react';
 import { Head, router } from '@inertiajs/react';
 import { BreadcrumbItem } from '@/types';
-import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie, Legend } from 'recharts';
 import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import AlertModal from '@/components/alert-modal';
 
 interface ChartData {
     label: string;
@@ -58,6 +59,14 @@ export default function Reports({
     const [customEndDate, setCustomEndDate] = useState('');
     const itemsPerPage = 10;
 
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
     const formatCurrency = (value: number) => {
         return new Intl.NumberFormat('en-PH', {
             style: 'currency',
@@ -66,9 +75,14 @@ export default function Reports({
         }).format(value);
     };
 
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
     const exportToCSV = (data: any[], filename: string) => {
         if (data.length === 0) {
-            alert('No data available to export');
+            showAlert('Error', 'No data available to export', 'error');
             return;
         }
 
@@ -162,6 +176,8 @@ export default function Reports({
             'Color': item.color
         })), `cylinder_distribution_${new Date().toISOString().split('T')[0]}`);
     };
+
+    const totalCylinders = cylinderDistribution.reduce((sum, item) => sum + item.quantity, 0);
 
     const charts = [
         {
@@ -438,52 +454,71 @@ export default function Reports({
             id: 'cylinders',
             title: 'Gas Cylinder Distribution',
             component: (
-                <div>
-                    <div style={{ height: '400px' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={cylinderDistribution} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                                <XAxis 
-                                    dataKey="name" 
-                                    tick={{ fontSize: 12 }}
-                                    interval={0}
-                                />
-                                <YAxis />
-                                <Tooltip 
-                                    formatter={(value) => [`${value} units`, 'Quantity']}
-                                />
-                                <Bar dataKey="quantity" radius={[4, 4, 0, 0]}>
-                                    {cylinderDistribution.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                    <div className="mt-6 flex flex-col items-center">
-                        <div className="overflow-x-auto w-full max-w-4xl">
-                            <table className="w-full text-sm text-center">
-                                <thead>
-                                    <tr className="border-b border-gray-200">
-                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Tank Type</th>
-                                        <th className="text-center py-3 px-4 font-semibold text-gray-700">Quantity</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {cylinderDistribution.map((item, index) => (
-                                        <tr key={index} className="border-b border-gray-100">
-                                            <td className="py-3 px-4 text-gray-800 text-center">{item.name}</td>
-                                            <td className="py-3 px-4 text-gray-800 text-center">{item.quantity}</td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                <div className="space-y-6">
+                    <div className="grid gap-6 lg:grid-cols-[2fr_3fr]">
+                        <div className="flex items-center justify-center">
+                            <ResponsiveContainer width="100%" height={360}>
+                                <PieChart>
+                                    <Pie
+                                        data={cylinderDistribution}
+                                        dataKey="quantity"
+                                        nameKey="name"
+                                        innerRadius={70}
+                                        outerRadius={130}
+                                        paddingAngle={4}
+                                        label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
+                                    >
+                                        {cylinderDistribution.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip formatter={(value, _name, payload) => [`${value} units`, payload?.payload?.name ?? 'Tank Type']} />
+                                    <Legend verticalAlign="bottom" height={36} />
+                                </PieChart>
+                            </ResponsiveContainer>
                         </div>
-                        <div className="flex justify-end mt-4">
+                        <div className="flex flex-col justify-center gap-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                            <div>
+                                <p className="text-sm font-medium text-gray-500">Total Cylinders Tracked</p>
+                                <p className="mt-1 text-3xl font-bold text-gray-900">{totalCylinders.toLocaleString()}</p>
+                                <p className="mt-1 text-xs text-gray-500">Breakdown by tank type shown in the chart.</p>
+                            </div>
+                            <div className="space-y-3">
+                                {cylinderDistribution.map((item, index) => {
+                                    const percent = totalCylinders > 0 ? (item.quantity / totalCylinders) * 100 : 0;
+                                    return (
+                                        <div key={index} className="rounded-lg border border-gray-200 p-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="inline-flex h-3 w-3 rounded-full" style={{ backgroundColor: item.color }}></span>
+                                                    <span className="text-sm font-semibold text-gray-800">{item.name}</span>
+                                                </div>
+                                                <span className="text-sm font-bold text-gray-900">{item.quantity.toLocaleString()} units</span>
+                                            </div>
+                                            <div className="mt-3 h-2 w-full rounded-full bg-gray-200">
+                                                <div
+                                                    className="h-full rounded-full"
+                                                    style={{ width: `${percent}%`, backgroundColor: item.color }}
+                                                ></div>
+                                            </div>
+                                            <p className="mt-2 text-xs text-gray-500">{percent.toFixed(1)}% of total inventory</p>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex flex-col items-start gap-4 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                        <div>
+                            <h3 className="text-sm font-semibold text-gray-800">Inventory Notes</h3>
+                            <p className="text-xs text-gray-500">Track cylinder mix and spot potential shortages before they impact fulfillment.</p>
+                        </div>
+                        <div className="flex w-full justify-end">
                             <button
                                 onClick={exportCylindersData}
-                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                                className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700"
                             >
-                                <Download className="w-4 h-4" />
+                                <Download className="h-4 w-4" />
                                 Export Cylinders
                             </button>
                         </div>
@@ -602,7 +637,7 @@ export default function Reports({
                                         if (customStartDate && customEndDate) {
                                             router.get('/reports', { period: currentPeriod, compare: 'custom', start_date: customStartDate, end_date: customEndDate });
                                         } else {
-                                            alert('Please select both start and end dates');
+                                            showAlert('Error', 'Please select both start and end dates', 'warning');
                                         }
                                     }}
                                     className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
@@ -915,6 +950,15 @@ export default function Reports({
                     </div>
                 </div>
             </div>
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </AppLayout>
     );
 }

@@ -41,6 +41,38 @@ class UserDashboardController extends Controller
             'completed_rentals' => Rental::where('customer_id', $customerId)->where('status', 'completed')->count(),
         ];
 
+        // Calculate billing information
+        $billingInfo = [];
+        if ($customerId) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customerId)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+        }
+
+        $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+
         // Get available tank types from inventory
         $tankTypes = \App\Models\Tank::where('status', 'available')
             ->where('quantity', '>', 0)
@@ -56,6 +88,8 @@ class UserDashboardController extends Controller
             'activeRentals' => $activeRentals,
             'stats' => $stats,
             'tankTypes' => $tankTypes,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]

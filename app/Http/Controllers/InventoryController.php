@@ -28,7 +28,7 @@ class InventoryController extends Controller
                 }
                 // If image is a relative path without /storage/, convert it
                 elseif (!str_starts_with($tank->image, 'http')) {
-                    $tank->image = Storage::url($tank->image);
+                    $tank->image = asset(Storage::url($tank->image));
                 }
             }
             return $tank;
@@ -98,6 +98,7 @@ class InventoryController extends Controller
             'last_refilled' => 'nullable|date',
             'status' => 'required|string|in:available,rented_out,maintenance',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:10240',
+            'quantity_change_reason' => 'required|string|max:1000'
         ]);
 
         $tankData = [
@@ -107,6 +108,18 @@ class InventoryController extends Controller
             'last_refilled' => $request->last_refilled,
             'status' => $request->status,
         ];
+
+        // Log quantity change if quantity has changed
+        if ($tank->quantity != $request->quantity) {
+            \App\Models\InventoryQuantityLog::create([
+                'tank_id' => $tank->id,
+                'user_id' => auth()->id(),
+                'old_quantity' => $tank->quantity,
+                'new_quantity' => $request->quantity,
+                'quantity_change' => $request->quantity - $tank->quantity,
+                'reason' => $request->quantity_change_reason,
+            ]);
+        }
 
         // Handle image upload
         if ($request->hasFile('image')) {
@@ -143,7 +156,6 @@ class InventoryController extends Controller
             'tank_type' => 'required|string|max:255',
             'quantity' => 'required|integer|min:1',
             'condition' => 'required|string',
-            'valve' => 'required|string',
         ]);
 
         // Check if tank exists in inventory

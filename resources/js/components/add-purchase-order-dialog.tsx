@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Plus, Trash2, Calendar } from 'lucide-react';
 import { router } from '@inertiajs/react';
+import AlertModal from '@/components/alert-modal';
 
 interface SupplierProduct {
     id: number;
@@ -54,11 +55,24 @@ export default function AddPurchaseOrderDialog({ open, onOpenChange, onSuccess, 
     const [selectedProduct, setSelectedProduct] = useState<string>('');
     const [quantity, setQuantity] = useState<string>('1');
 
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
         if (orderItems.length === 0) {
-            alert('Please add at least one item to the order.');
+            showAlert('Error', 'Please add at least one item to the order.', 'warning');
             return;
         }
 
@@ -371,6 +385,15 @@ export default function AddPurchaseOrderDialog({ open, onOpenChange, onSuccess, 
                     </DialogFooter>
                 </form>
             </DialogContent>
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </Dialog>
     );
 }

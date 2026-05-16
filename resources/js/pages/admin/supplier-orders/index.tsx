@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
+import ConfirmModal from '@/components/confirm-modal';
 
 interface SupplierProduct {
     id: number;
@@ -63,16 +64,35 @@ export default function AdminSupplierOrders({ orders, suppliers }: Props) {
     const [quantity, setQuantity] = useState<string>('1');
     const [notes, setNotes] = useState<string>('');
 
+    // Modal states
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
     const handleReceive = (orderId: number) => {
-        if (confirm('Are you sure you want to mark this order as received? This will add the items to inventory.')) {
-            router.post(`/admin/supplier-orders/${orderId}/receive`);
-        }
+        showConfirm(
+            'Mark as Received',
+            'Are you sure you want to mark this order as received? This will add the items to inventory.',
+            () => {
+                router.post(`/admin/supplier-orders/${orderId}/receive`);
+            },
+            'warning'
+        );
     };
 
     const handleCancel = (orderId: number) => {
-        if (confirm('Are you sure you want to cancel this order?')) {
-            router.post(`/admin/supplier-orders/${orderId}/cancel`);
-        }
+        showConfirm(
+            'Cancel Order',
+            'Are you sure you want to cancel this order?',
+            () => {
+                router.post(`/admin/supplier-orders/${orderId}/cancel`);
+            },
+            'danger'
+        );
     };
 
     const handleTogglePayment = (orderId: number, currentStatus: string) => {
@@ -118,6 +138,11 @@ export default function AdminSupplierOrders({ orders, suppliers }: Props) {
         const products = getSelectedSupplierProducts();
         const product = products.find(p => p.id.toString() === selectedProduct);
         return product?.price || 0;
+    };
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
     };
 
     const handleSubmitOrder = (e: React.FormEvent) => {
@@ -411,6 +436,19 @@ export default function AdminSupplierOrders({ orders, suppliers }: Props) {
                     </form>
                 </DialogContent>
             </Dialog>
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
         </AppLayout>
     );
 }

@@ -31,14 +31,27 @@ class PurchaseOrderController extends Controller
                     'id' => $po->id,
                     'po_number' => $po->po_number,
                     'supplier_name' => $po->supplier_name,
+                    'supplier_id' => $po->supplier_id,
                     'order_date' => $po->order_date->format('Y-m-d'),
                     'expected_delivery_date' => $po->expected_delivery_date->format('Y-m-d'),
                     'total_amount' => (float) $po->total_amount,
                     'status' => $po->status,
+                    'payment_method' => $po->payment_method,
+                    'payment_status' => $po->payment_status,
                     'items_count' => $po->items_count,
                     'received_count' => $po->received_count,
                     'notes' => $po->notes,
                     'created_at' => $po->created_at->format('Y-m-d H:i:s'),
+                    'items' => $po->items->map(function ($item) {
+                        return [
+                            'id' => $item->id,
+                            'product_name' => $item->product_name,
+                            'quantity' => (int) $item->quantity,
+                            'received_quantity' => (int) $item->received_quantity,
+                            'price' => (float) $item->price,
+                            'total' => (float) $item->total,
+                        ];
+                    }),
                 ];
             });
         
@@ -306,6 +319,78 @@ class PurchaseOrderController extends Controller
         }
     }
     
+    /**
+     * Mark all items of a purchase order as fully received and add to inventory.
+     */
+    public function markReceived(Request $request, PurchaseOrder $order)
+    {
+        if (in_array($order->status, ['received', 'cancelled'])) {
+            return redirect()->back()->with('error', 'This purchase order is already ' . $order->status . '.');
+        }
+
+        $request->validate([
+            'payment_status' => 'nullable|in:unpaid,partial_paid,paid',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            foreach ($order->items as $item) {
+                $remaining = max(0, $item->quantity - $item->received_quantity);
+
+                if ($remaining > 0) {
+                    $item->received_quantity = $item->quantity;
+                    $item->save();
+
+                    // Add the remaining items to inventory
+                    $this->addToInventory($item->product_name, $remaining, $item->price);
+                }
+            }
+
+            $order->update([
+                'status' => 'received',
+                'payment_status' => $request->payment_status ?? $order->payment_status ?? 'unpaid',
+            ]);
+
+            DB::commit();
+
+            $paymentText = ucfirst(str_replace('_', ' ', $order->fresh()->payment_status));
+            return redirect()->back()->with('success', "Purchase order {$order->po_number} marked as received. Payment: {$paymentText}. Items added to inventory.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Mark received error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to mark order as received: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Cancel a purchase order.
+     */
+    public function cancel(PurchaseOrder $order)
+    {
+        if (in_array($order->status, ['received', 'cancelled'])) {
+            return redirect()->back()->with('error', 'Cannot cancel an order that is already ' . $order->status . '.');
+        }
+
+        if ($order->status === 'partial_received') {
+            return redirect()->back()->with('error', 'Cannot cancel an order that has already received some items.');
+        }
+
+        $order->update(['status' => 'cancelled']);
+
+        // Notify supplier
+        if ($order->supplier && $order->supplier->user_id) {
+            Notification::create([
+                'user_id' => $order->supplier->user_id,
+                'type' => 'warning',
+                'title' => 'Purchase Order Cancelled',
+                'message' => "Purchase order {$order->po_number} has been cancelled by the admin.",
+                'link' => '/supplier/orders',
+            ]);
+        }
+
+        return redirect()->back()->with('success', "Purchase order {$order->po_number} has been cancelled.");
+    }
+
     /**
      * Update the specified purchase order.
      */

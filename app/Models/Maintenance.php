@@ -10,7 +10,6 @@ class Maintenance extends Model
         'tank_type',
         'quantity',
         'condition',
-        'valve',
         'status',
     ];
 }

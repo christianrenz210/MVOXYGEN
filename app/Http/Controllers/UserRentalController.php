@@ -31,10 +31,41 @@ class UserRentalController extends Controller
         
         if (!$customer) {
             $rentalRequests = collect([]);
+            $billingInfo = [];
+            $totalOutstandingBalance = 0;
         } else {
             $rentalRequests = RentalRequest::where('customer_id', $customer->id)
                 ->orderBy('created_at', 'desc')
                 ->get();
+
+            // Calculate billing information
+            $billingInfo = [];
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
         }
 
         return Inertia::render('user/rentals/index', [
@@ -43,6 +74,8 @@ class UserRentalController extends Controller
                 ['title' => 'My Rentals', 'href' => '/user/rentals']
             ],
             'rentalRequests' => $rentalRequests,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
@@ -95,6 +128,38 @@ class UserRentalController extends Controller
             ->unique('type')
             ->values();
 
+        // Calculate billing information
+        $billingInfo = [];
+        $totalOutstandingBalance = 0;
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+        }
+
         return Inertia::render('user/rentals/create', [
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/user/dashboard'],
@@ -103,6 +168,8 @@ class UserRentalController extends Controller
             ],
             'approved_rental_requests' => $approvedRentalRequests,
             'tankTypes' => $tankTypes,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => Auth::user()
             ]
@@ -148,11 +215,14 @@ class UserRentalController extends Controller
             'product_id' => null,
             'tank_type' => $request->tank_type,
             'quantity' => 1, // Default quantity since we removed it from form
+            'start_date' => now()->format('Y-m-d'),
+            'end_date' => now()->addDays(7)->format('Y-m-d'),
             'purpose' => $request->purpose,
             'contact_number' => $request->contact_number,
             'address' => $request->address ?? 'Pickup at Store',
             'status' => 'pending',
             'priority' => $request->priority ?? 'normal',
+            'delivery_fee' => $request->pickup_type === 'delivery' ? ($request->delivery_fee ?? 0) : 0,
             'admin_notes' => null,
             'rejected_reason' => null
         ];
@@ -240,6 +310,38 @@ class UserRentalController extends Controller
             'completed_requests' => $rentalRequests->where('status', 'completed')->count(),
         ];
 
+        // Calculate billing information
+        $billingInfo = [];
+        $totalOutstandingBalance = 0;
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+        }
+
         return Inertia::render('user/history', [
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/user/dashboard'],
@@ -247,6 +349,8 @@ class UserRentalController extends Controller
             ],
             'rentalRequests' => $rentalRequests,
             'stats' => $stats,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
@@ -276,12 +380,49 @@ class UserRentalController extends Controller
     {
         $user = Auth::user()->fresh();
 
+        // Find customer record for this user
+        $customer = Customer::where('name', $user->name)->first();
+
+        // Calculate billing information
+        $billingInfo = [];
+        $totalOutstandingBalance = 0;
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+        }
+
         return Inertia::render('user/settings', [
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/user/dashboard'],
                 ['title' => 'Settings', 'href' => '/user/settings']
             ],
             'user' => $user,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
@@ -327,12 +468,19 @@ class UserRentalController extends Controller
             $file = $request->file('profile_image');
             $filename = time() . '_' . $file->getClientOriginalName();
             $path = $file->storeAs('profile-images', $filename, 'public');
-            $updateData['profile_image'] = '/storage/' . $path;
+            $updateData['profile_image'] = $path;
 
             \Log::info('Profile image uploaded successfully: ' . $updateData['profile_image']);
         }
 
         $user->update($updateData);
+
+        // Update customer profile_image if customer exists
+        $customer = \App\Models\Customer::where('name', $user->name)->first();
+        if ($customer && isset($updateData['profile_image'])) {
+            $customer->update(['profile_image' => $updateData['profile_image']]);
+            \Log::info('Updated customer profile_image: ' . $customer->id);
+        }
 
         // Refresh user in session
         Auth::setUser($user->fresh());
@@ -457,12 +605,46 @@ class UserRentalController extends Controller
             ];
         }
 
+        // Calculate billing information for sidebar
+        $billingInfo = [];
+        $totalOutstandingBalance = 0;
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+        }
+
         return Inertia::render('user/rentals/track', [
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/user/dashboard'],
                 ['title' => 'Track Delivery', 'href' => "/user/rentals/{$rentalRequest->id}/track"]
             ],
             'rental' => $rentalData,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
@@ -487,6 +669,45 @@ class UserRentalController extends Controller
                 ->with('error', 'You can only edit pending requests.');
         }
 
+        // Get approved rental requests for this customer
+        $approvedRentalRequests = [];
+        if ($customer) {
+            $approvedRentalRequests = RentalRequest::where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get(['tank_type'])
+                ->pluck('tank_type')
+                ->unique()
+                ->values()
+                ->toArray();
+        }
+
+        // Get available tank types from inventory with prices, quantity, and images
+        $tankTypes = \App\Models\Tank::where('status', 'available')
+            ->where('quantity', '>', 0)
+            ->get(['tank_type', 'price', 'quantity', 'image'])
+            ->map(function ($tank) {
+                // Convert image path to full URL if it exists
+                $imageUrl = null;
+                if ($tank->image) {
+                    if (str_starts_with($tank->image, 'http')) {
+                        $imageUrl = $tank->image;
+                    } elseif (str_starts_with($tank->image, '/storage/')) {
+                        $imageUrl = asset($tank->image);
+                    } else {
+                        $imageUrl = Storage::url($tank->image);
+                    }
+                }
+
+                return [
+                    'type' => $tank->tank_type,
+                    'price' => (float) $tank->price,
+                    'quantity' => $tank->quantity,
+                    'image' => $imageUrl
+                ];
+            })
+            ->unique('type')
+            ->values();
+
         // Load assigned tank with image
         $rentalRequest->load('assignedTank');
 
@@ -505,6 +726,38 @@ class UserRentalController extends Controller
             }
         }
 
+        // Calculate billing information
+        $billingInfo = [];
+        $totalOutstandingBalance = 0;
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $billingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($billingInfo, 'remaining_balance'));
+        }
+
         return Inertia::render('user/rentals/edit', [
             'breadcrumbs' => [
                 ['title' => 'Dashboard', 'href' => '/user/dashboard'],
@@ -512,6 +765,10 @@ class UserRentalController extends Controller
                 ['title' => 'Edit Request', 'href' => "/user/rentals/{$rentalRequest->id}/edit"]
             ],
             'rentalRequest' => $rentalRequest,
+            'tankTypes' => $tankTypes,
+            'approved_rental_requests' => $approvedRentalRequests,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
@@ -558,6 +815,7 @@ class UserRentalController extends Controller
             'purpose' => $request->purpose,
             'contact_number' => $request->contact_number,
             'address' => $request->address ?? 'Pickup at Store',
+            'delivery_fee' => $request->pickup_type === 'delivery' ? ($request->delivery_fee ?? 0) : 0,
         ];
 
         // Handle geolocation based on pickup type
@@ -619,15 +877,73 @@ class UserRentalController extends Controller
     {
         $user = Auth::user();
         
-        // Find customer record for this user
-        $customer = Customer::where('name', $user->name)->first();
+        // Find customer record for this user (try by name or contact number)
+        $customer = Customer::where('name', $user->name)
+            ->orWhere('contact_number', $user->phone)
+            ->first();
         
         // Ensure user can only view their own requests
-        if (!$customer || $rentalRequest->customer_id !== $customer->id) {
-            abort(403);
+        if (!$customer) {
+            abort(403, 'Customer record not found. Please contact support.');
+        }
+        
+        if ($rentalRequest->customer_id !== $customer->id) {
+            abort(403, 'You do not have permission to view this rental request.');
         }
 
-        $rentalRequest->load(['rental']);
+        // Calculate billing info for this specific rental
+        $billingInfo = [];
+        if ($rentalRequest->rental) {
+            $rental = $rentalRequest->rental;
+            $totalAmount = $rental->total_amount ?? 0;
+            $depositAmount = $rental->deposit_amount ?? 0;
+            $remainingBalance = max($totalAmount - $depositAmount, 0);
+            
+            // Get payment history for this rental
+            $paymentHistory = \App\Models\Deposit::where('rental_id', $rental->id)
+                ->where('status', 'paid')
+                ->orderBy('payment_date', 'desc')
+                ->get()
+                ->toArray();
+            
+            // Always show billing info regardless of remaining balance
+            $billingInfo = [
+                'total_amount' => $totalAmount,
+                'deposit_amount' => $depositAmount,
+                'remaining_balance' => $remainingBalance,
+                'deposit_status' => $rental->deposit_status ?? 'pending',
+                'payment_history' => $paymentHistory,
+            ];
+        }
+        
+        if ($customer) {
+            $approvedRentals = RentalRequest::with(['rental'])
+                ->where('customer_id', $customer->id)
+                ->where('status', 'approved')
+                ->get();
+            
+            foreach ($approvedRentals as $request) {
+                if ($request->rental) {
+                    $rental = $request->rental;
+                    $totalAmount = $rental->total_amount ?? 0;
+                    $depositAmount = $rental->deposit_amount ?? 0;
+                    $remainingBalance = max($totalAmount - $depositAmount, 0);
+                    
+                    if ($remainingBalance > 0) {
+                        $sidebarBillingInfo[] = [
+                            'rental_request_id' => $request->id,
+                            'tank_type' => $request->tank_type,
+                            'total_amount' => $totalAmount,
+                            'deposit_amount' => $depositAmount,
+                            'remaining_balance' => $remainingBalance,
+                            'status' => $request->status,
+                            'pickup_date' => $rental->pickup_date,
+                        ];
+                    }
+                }
+            }
+            $totalOutstandingBalance = array_sum(array_column($sidebarBillingInfo, 'remaining_balance'));
+        }
 
         return Inertia::render('user/rentals/show', [
             'breadcrumbs' => [
@@ -636,9 +952,70 @@ class UserRentalController extends Controller
                 ['title' => 'Request Details', 'href' => "/user/rentals/{$rentalRequest->id}"]
             ],
             'rentalRequest' => $rentalRequest,
+            'billingInfo' => $billingInfo,
+            'totalOutstandingBalance' => $totalOutstandingBalance,
             'auth' => [
                 'user' => $user
             ]
         ]);
+    }
+
+    public function payRemainingBalance(Request $request, RentalRequest $rentalRequest)
+    {
+        $request->validate([
+            'amount' => 'required|numeric|min:0.01',
+            'payment_method' => 'required|string|in:cash,gcash,card',
+            'reference_number' => 'nullable|string',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        if (!$rentalRequest->rental) {
+            return back()->with('error', 'No rental record found for this request.');
+        }
+
+        $rental = $rentalRequest->rental;
+        $currentDeposit = $rental->deposit_amount ?? 0;
+        $totalRentalCost = $rental->total_amount ?? 0;
+        $newPaymentAmount = $request->amount;
+        
+        $newTotalDeposit = $currentDeposit + $newPaymentAmount;
+        
+        if ($totalRentalCost > 0 && $newTotalDeposit > $totalRentalCost) {
+            return back()->with('error', 'Payment amount exceeds remaining balance. Maximum payable amount is: PHP ' . ($totalRentalCost - $currentDeposit));
+        }
+
+        // Generate transaction ID
+        $transactionId = 'TXN-' . strtoupper(uniqid()) . '-' . date('Ymd');
+
+        $rental->update([
+            'deposit_amount' => $newTotalDeposit,
+            'deposit_payment_method' => $request->payment_method,
+            'deposit_payment_date' => now(),
+            'deposit_reference_number' => $request->reference_number,
+            'deposit_status' => ($newTotalDeposit >= $totalRentalCost) ? 'paid' : 'partial_paid'
+        ]);
+
+        $deposit = \App\Models\Deposit::create([
+            'rental_id' => $rental->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'amount' => $newPaymentAmount,
+            'payment_method' => $request->payment_method,
+            'reference_number' => $request->reference_number,
+            'status' => 'paid',
+            'payment_date' => now(),
+            'notes' => $request->notes,
+            'transaction_id' => $transactionId,
+        ]);
+
+        \Log::info('Payment recorded for rental', [
+            'rental_id' => $rental->id,
+            'rental_request_id' => $rentalRequest->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'amount' => $newPaymentAmount,
+            'payment_method' => $request->payment_method,
+            'transaction_id' => $transactionId,
+        ]);
+
+        return back()->with('success', 'Payment recorded successfully!')->with('transaction_id', $transactionId);
     }
 }

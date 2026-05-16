@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Database, Download, Upload, AlertCircle, User, Mail, Phone, MapPin, CheckCircle } from 'lucide-react';
 import { type BreadcrumbItem } from '@/types';
 import { router } from '@inertiajs/react';
+import { sanitizePhoneDigits, formatPhoneNumber, stripCountryCode } from '@/utils/phone';
 
 interface PageProps {
     breadcrumbs: BreadcrumbItem[];
@@ -47,7 +48,7 @@ export default function AdminSettings() {
     const [formData, setFormData] = React.useState({
         name: auth.user.name || '',
         email: auth.user.email || '',
-        phone: auth.user.phone || '',
+        phone: formatPhoneNumber(auth.user.phone || ''),
         address: auth.user.address || '',
     });
 
@@ -70,7 +71,12 @@ export default function AdminSettings() {
 
     const handleProfileUpdate = (e: React.FormEvent) => {
         e.preventDefault();
-        router.post('/admin/settings/profile', formData, {
+        const submissionData = {
+            ...formData,
+            phone: formatPhoneNumber(formData.phone),
+        };
+
+        router.post('/admin/settings/profile', submissionData, {
             onSuccess: () => {
                 console.log('Profile updated successfully');
             },
@@ -126,6 +132,16 @@ export default function AdminSettings() {
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
+
+        if (name === 'phone') {
+            const digits = sanitizePhoneDigits(value);
+            setFormData(prev => ({
+                ...prev,
+                phone: formatPhoneNumber(digits),
+            }));
+            return;
+        }
+
         setFormData(prev => ({
             ...prev,
             [name]: value
@@ -164,15 +180,18 @@ export default function AdminSettings() {
                                 <div className="relative">
                                     {auth.user.profile_image ? (
                                         <img
-                                            src={auth.user.profile_image}
+                                            src={`/storage/${auth.user.profile_image}`}
                                             alt="Profile"
                                             className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                            }}
                                         />
-                                    ) : (
-                                        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
-                                            <User className="w-12 h-12 text-gray-400" />
-                                        </div>
-                                    )}
+                                    ) : null}
+                                    <div className={`w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200 ${auth.user.profile_image ? 'hidden' : ''}`}>
+                                        <User className="w-12 h-12 text-gray-400" />
+                                    </div>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-600">Admin Profile</p>
@@ -239,14 +258,19 @@ export default function AdminSettings() {
                                 </div>
                                 <div>
                                     <Label htmlFor="phone">Contact Number</Label>
-                                    <Input
-                                        id="phone"
-                                        name="phone"
-                                        type="tel"
-                                        value={formData.phone}
-                                        onChange={handleInputChange}
-                                        className="mt-1"
-                                    />
+                                    <div className="mt-1 flex items-center gap-2">
+                                        <span className="text-sm font-medium text-gray-600">+63</span>
+                                        <Input
+                                            id="phone"
+                                            name="phone"
+                                            type="tel"
+                                            inputMode="numeric"
+                                            maxLength={11}
+                                            value={stripCountryCode(formData.phone)}
+                                            onChange={handleInputChange}
+                                            placeholder="9XXXXXXXXX"
+                                        />
+                                    </div>
                                 </div>
                                 <div>
                                     <Label htmlFor="address">Address</Label>

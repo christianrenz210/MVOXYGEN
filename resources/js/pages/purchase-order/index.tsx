@@ -7,13 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import { Search, Plus, Eye, Edit, Package, CheckCircle, Clock, AlertCircle, Truck, Building2, Calendar, DollarSign, Download, Filter } from 'lucide-react';
+import { Search, Plus, Eye, Edit, Package, CheckCircle, Clock, AlertCircle, Truck, Building2, Calendar, DollarSign, Download, Filter, XCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import AddPurchaseOrderDialog from '@/components/add-purchase-order-dialog';
 import ViewPurchaseOrderDialog from '@/components/view-purchase-order-dialog';
 import EditPurchaseOrderDialog from '@/components/edit-purchase-order-dialog';
+import PartialReceiveDialog from '@/components/partial-receive-dialog';
+import MarkReceivedDialog from '@/components/mark-received-dialog';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { type BreadcrumbItem } from '@/types';
+import ConfirmModal from '@/components/confirm-modal';
 
 // Fade-in-up animation styles
 const fadeInSection = {
@@ -41,6 +44,15 @@ const fadeInUpStyle = `
 }
 `;
 
+interface PurchaseOrderItem {
+    id: number;
+    product_name: string;
+    quantity: number;
+    received_quantity: number;
+    price: number;
+    total: number;
+}
+
 interface PurchaseOrder {
     id: number;
     po_number: string;
@@ -50,11 +62,14 @@ interface PurchaseOrder {
     expected_delivery_date: string;
     total_amount: number;
     status: 'pending' | 'partial_received' | 'received' | 'cancelled';
+    payment_method?: string;
+    payment_status?: string;
     items_count: number;
     received_count: number;
     created_at: string;
     updated_at?: string;
     notes?: string;
+    items?: PurchaseOrderItem[];
 }
 
 interface SupplierProduct {
@@ -89,7 +104,25 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
     const [selectedPurchaseOrder, setSelectedPurchaseOrder] = useState<PurchaseOrder | null>(null);
     const [showViewDialog, setShowViewDialog] = useState(false);
     const [showAddDialog, setShowAddDialog] = useState(false);
+    const [showPartialReceiveDialog, setShowPartialReceiveDialog] = useState(false);
+    const [partialReceiveOrder, setPartialReceiveOrder] = useState<PurchaseOrder | null>(null);
+    const [showMarkReceivedDialog, setShowMarkReceivedDialog] = useState(false);
+    const [markReceivedOrder, setMarkReceivedOrder] = useState<PurchaseOrder | null>(null);
     const itemsPerPage = 10;
+
+    // Confirm modal state
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
 
     // Show success message when it exists
     useEffect(() => {
@@ -123,6 +156,24 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     const currentPurchaseOrders = filteredPurchaseOrders.slice(startIndex, endIndex);
+
+    const handleMarkReceived = (po: PurchaseOrder) => {
+        setMarkReceivedOrder(po);
+        setShowMarkReceivedDialog(true);
+    };
+
+    const handleCancelOrder = (po: PurchaseOrder) => {
+        showConfirm(
+            'Cancel Purchase Order',
+            `Are you sure you want to cancel purchase order ${po.po_number}? This action cannot be undone.`,
+            () => {
+                router.post(`/purchase-order/${po.id}/cancel`, {}, {
+                    preserveScroll: true,
+                });
+            },
+            'danger'
+        );
+    };
 
     const pendingOrders = purchaseOrders.filter(po => po.status === 'pending').length;
     const partialReceivedOrders = purchaseOrders.filter(po => po.status === 'partial_received').length;
@@ -192,54 +243,69 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
 
                 {/* Stats Cards */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <Card style={fadeInSectionDelay(0.1)}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
-                            <Package className="h-4 w-4 text-blue-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold">{purchaseOrders.length}</div>
-                            <p className="text-xs text-muted-foreground">
-                                All purchase orders
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card style={fadeInSectionDelay(0.2)}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-                            <Clock className="h-4 w-4 text-yellow-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-yellow-600">{pendingOrders}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Awaiting delivery
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card style={fadeInSectionDelay(0.3)}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Partial Received</CardTitle>
-                            <AlertCircle className="h-4 w-4 text-blue-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-blue-600">{partialReceivedOrders}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Partially delivered
-                            </p>
-                        </CardContent>
-                    </Card>
-                    <Card style={fadeInSectionDelay(0.4)}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Received</CardTitle>
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-2xl font-bold text-green-600">{receivedOrders}</div>
-                            <p className="text-xs text-muted-foreground">
-                                Fully delivered
-                            </p>
-                        </CardContent>
-                    </Card>
+                    {/* Total Orders Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 transition-all hover:shadow-xl" style={fadeInSectionDelay(0.1)}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Total Orders</p>
+                                <p className="text-2xl font-bold text-gray-800">{purchaseOrders.length}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    All purchase orders
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-indigo-100 rounded-full flex items-center justify-center">
+                                <Package className="w-6 h-6 text-indigo-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Pending Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 transition-all hover:shadow-xl" style={fadeInSectionDelay(0.2)}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Pending</p>
+                                <p className="text-2xl font-bold text-yellow-600">{pendingOrders}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Awaiting delivery
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                                <Clock className="w-6 h-6 text-yellow-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Partial Received Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transition-all hover:shadow-xl" style={fadeInSectionDelay(0.3)}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Partial Received</p>
+                                <p className="text-2xl font-bold text-blue-600">{partialReceivedOrders}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Partially delivered
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                                <AlertCircle className="w-6 h-6 text-blue-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Received Card */}
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 transition-all hover:shadow-xl" style={fadeInSectionDelay(0.4)}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-gray-500 text-sm">Received</p>
+                                <p className="text-2xl font-bold text-green-600">{receivedOrders}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Fully delivered
+                                </p>
+                            </div>
+                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                                <CheckCircle className="w-6 h-6 text-green-600" />
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 {/* Search and Filter */}
@@ -333,7 +399,7 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                <div className="flex items-center gap-2 justify-end">
+                                                <div className="flex items-center gap-1 justify-end">
                                                     <Button 
                                                         variant="ghost" 
                                                         size="sm"
@@ -341,6 +407,7 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
                                                             setSelectedPurchaseOrder(po);
                                                             setShowViewDialog(true);
                                                         }}
+                                                        title="View"
                                                     >
                                                         <Eye className="h-4 w-4" />
                                                     </Button>
@@ -348,6 +415,42 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
                                                         purchaseOrder={po} 
                                                         onSuccess={() => router.visit('/purchase-order')} 
                                                     />
+                                                    {(po.status === 'pending' || po.status === 'partial_received') && (po.items_count - po.received_count) > 1 && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setPartialReceiveOrder(po);
+                                                                setShowPartialReceiveDialog(true);
+                                                            }}
+                                                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                            title="Partial Receive"
+                                                        >
+                                                            <Package className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                    {(po.status === 'pending' || po.status === 'partial_received') && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleMarkReceived(po)}
+                                                            className="text-green-600 hover:text-green-700 hover:bg-green-50"
+                                                            title="Mark as Fully Received"
+                                                        >
+                                                            <CheckCircle className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                    {po.status === 'pending' && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleCancelOrder(po)}
+                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                                            title="Cancel Order"
+                                                        >
+                                                            <XCircle className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -429,6 +532,43 @@ export default function PurchaseOrder({ purchaseOrders: initialPurchaseOrders = 
                 onSuccess={() => router.visit('/purchase-order')}
                 suppliers={suppliers || []}
                 nextPoNumber={nextPoNumber}
+            />
+
+            {/* Partial Receive Dialog */}
+            <PartialReceiveDialog
+                purchaseOrder={partialReceiveOrder}
+                open={showPartialReceiveDialog}
+                onOpenChange={(open) => {
+                    setShowPartialReceiveDialog(open);
+                    if (!open) {
+                        setPartialReceiveOrder(null);
+                    }
+                }}
+            />
+
+            {/* Mark Received Dialog */}
+            <MarkReceivedDialog
+                purchaseOrder={markReceivedOrder}
+                open={showMarkReceivedDialog}
+                onOpenChange={(open) => {
+                    setShowMarkReceivedDialog(open);
+                    if (!open) {
+                        setMarkReceivedOrder(null);
+                    }
+                }}
+            />
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
             />
         </AppLayout>
     );

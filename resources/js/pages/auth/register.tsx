@@ -1,15 +1,19 @@
 import { Head, useForm, router } from '@inertiajs/react';
 import { LoaderCircle, Eye, EyeOff, ArrowLeft, UserPlus, Shield, CheckCircle, Info, AlertTriangle, Mail, Hourglass, RotateCcw, X } from 'lucide-react';
 import { FormEventHandler, useState, useEffect } from 'react';
+import { formatPhoneNumber, stripCountryCode, sanitizePhoneDigits } from '@/utils/phone';
 
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import TermsModal from '@/components/terms-modal';
+import PrivacyModal from '@/components/privacy-modal';
 
 declare global {
     interface Window {
-        grecaptcha: any;
+        onRecaptchaSuccess?: (token: string) => void;
+        onRecaptchaExpired?: () => void;
     }
 }
 
@@ -19,6 +23,7 @@ interface RegisterForm {
     phone?: string;
     password: string;
     password_confirmation: string;
+    accept_terms: boolean;
     [key: string]: string | number | boolean | Blob | File | null | undefined;
 }
 
@@ -45,6 +50,8 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
     const [recaptchaToken, setRecaptchaToken] = useState('');
     const [recaptchaError, setRecaptchaError] = useState('');
     const [recaptchaLoaded, setRecaptchaLoaded] = useState(false);
+    const [showTermsModal, setShowTermsModal] = useState(false);
+    const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
     // Register form data
     const { data, setData, post, processing, errors, reset } = useForm<RegisterForm>({
@@ -53,6 +60,7 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
         phone: '',
         password: '',
         password_confirmation: '',
+        accept_terms: false,
         recaptcha_token: '',
     });
 
@@ -73,9 +81,15 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
             return;
         }
         
+        // Check if terms are accepted
+        if (!data.accept_terms) {
+            setRecaptchaError('You must accept the Terms & Conditions to register.');
+            return;
+        }
+        
         // Submit form
         post(route('register'), {
-            onSuccess: (page) => {
+            onSuccess: (page: any) => {
                 // Handle successful registration
                 if (page.props.otp_code) {
                     setTestOtpCode(String(page.props.otp_code));
@@ -331,18 +345,26 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                                         <Label htmlFor="phone" className="form-label fw-semibold text-black">
                                             Phone Number (Optional)
                                         </Label>
-                                        <Input
-                                            id="phone"
-                                            type="tel"
-                                            className="w-full transition-all duration-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            style={{
-                                                borderRadius: '8px',
-                                                border: '1px solid #ddd'
-                                            }}
-                                            value={data.phone || ''}
-                                            onChange={(e) => setData('phone', e.target.value)}
-                                            placeholder="Enter your phone number"
-                                        />
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-gray-600 text-sm font-medium">+63</span>
+                                            <Input
+                                                id="phone"
+                                                type="tel"
+                                                inputMode="numeric"
+                                                maxLength={11}
+                                                className="w-full transition-all duration-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                style={{
+                                                    borderRadius: '8px',
+                                                    border: '1px solid #ddd'
+                                                }}
+                                                value={stripCountryCode(data.phone || '')}
+                                                onChange={(e) => {
+                                                    const digits = sanitizePhoneDigits(e.target.value);
+                                                    setData('phone', formatPhoneNumber(digits));
+                                                }}
+                                                placeholder="9XXXXXXXXX"
+                                            />
+                                        </div>
                                         <InputError message={errors.phone} />
                                     </div>
 
@@ -522,6 +544,26 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                                         )}
                                     </div>
 
+                                    {/* Terms & Conditions */}
+                                    <div className="mb-4">
+                                        <div className="flex items-start gap-2">
+                                            <input
+                                                type="checkbox"
+                                                id="accept_terms"
+                                                checked={data.accept_terms}
+                                                onChange={(e) => setData('accept_terms', e.target.checked)}
+                                                className="mt-1 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                                required
+                                            />
+                                            <Label htmlFor="accept_terms" className="text-sm text-gray-600 cursor-pointer">
+                                                I agree to the <button type="button" onClick={() => setShowTermsModal(true)} className="text-blue-600 hover:underline bg-transparent border-0 p-0 cursor-pointer">Terms & Conditions</button> and <button type="button" onClick={() => setShowPrivacyModal(true)} className="text-blue-600 hover:underline bg-transparent border-0 p-0 cursor-pointer">Privacy Policy</button>
+                                            </Label>
+                                        </div>
+                                        {errors.accept_terms && (
+                                            <InputError message={errors.accept_terms} />
+                                        )}
+                                    </div>
+
                                     {/* Register Button */}
                                     <Button
                                         type="submit"
@@ -533,7 +575,7 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                                             padding: '12px',
                                             cursor: recaptchaToken ? 'pointer' : 'not-allowed'
                                         }}
-                                        disabled={processing || !recaptchaToken}
+                                        disabled={processing || !recaptchaToken || !data.accept_terms}
                                     >
                                         {processing ? (
                                             <>
@@ -717,6 +759,18 @@ export default function Register({ status, otp_sent, otp_error, user_id, otp_cod
                     </div>
                 </div>
             )}
+            
+            {/* Terms & Conditions Modal */}
+            <TermsModal 
+                open={showTermsModal}
+                onOpenChange={setShowTermsModal}
+            />
+
+            {/* Privacy Policy Modal */}
+            <PrivacyModal 
+                open={showPrivacyModal}
+                onOpenChange={setShowPrivacyModal}
+            />
         </div>
     );
 }

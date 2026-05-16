@@ -14,6 +14,9 @@ class Sale extends Model
         'items',
         'status',
         'user_id',
+        'gcash_reference',
+        'customer_phone',
+        'payment_time',
     ];
 
     protected $casts = [

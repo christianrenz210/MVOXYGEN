@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-react';
 import { useForm } from '@inertiajs/react';
+import { sanitizePhoneDigits } from '@/utils/phone';
 
 interface AddCustomerDialogProps {
     onSuccess?: () => void;
@@ -27,10 +28,9 @@ export default function AddCustomerDialog({ onSuccess }: AddCustomerDialogProps)
         status: 'active' as const,
     });
 
-    // Remove contact number validation
     const handleContactNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setData('contact_number', value);
+        const digits = sanitizePhoneDigits(e.target.value);
+        setData('contact_number', digits);
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -89,9 +89,11 @@ export default function AddCustomerDialog({ onSuccess }: AddCustomerDialogProps)
                             <Input
                                 id="contact_number"
                                 type="tel"
+                                inputMode="numeric"
+                                maxLength={11}
                                 value={data.contact_number}
                                 onChange={handleContactNumberChange}
-                                placeholder="Enter contact number"
+                                placeholder="9XXXXXXXXXX"
                                 required
                             />
                             {errors.contact_number && (
@@ -122,7 +124,7 @@ export default function AddCustomerDialog({ onSuccess }: AddCustomerDialogProps)
                             <select
                                 id="status"
                                 value={data.status}
-                                onChange={(e) => setData('status', e.target.value as 'active' | 'inactive')}
+                                onChange={(e) => setData('status', e.target.value as typeof data.status)}
                                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <option value="active">Active</option>

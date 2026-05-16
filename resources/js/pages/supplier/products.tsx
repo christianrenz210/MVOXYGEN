@@ -299,7 +299,7 @@ export default function SupplierProducts({ products, supplier, success }: Suppli
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="price">Price (PHP)</Label>
+                                <Label htmlFor="price">Price (₱)</Label>
                                 <Input
                                     id="price"
                                     type="number"
@@ -376,7 +376,7 @@ export default function SupplierProducts({ products, supplier, success }: Suppli
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="edit_price">Price (PHP)</Label>
+                                <Label htmlFor="edit_price">Price (₱)</Label>
                                 <Input
                                     id="edit_price"
                                     type="number"

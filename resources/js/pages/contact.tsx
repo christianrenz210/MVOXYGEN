@@ -1,5 +1,8 @@
+import React, { useState, useEffect, useRef, FormEventHandler } from 'react';
 import { Head, Link, usePage } from '@inertiajs/react';
-import { useState, useEffect, useRef, FormEventHandler } from 'react';
+import AppLayout from '@/layouts/app-layout';
+import { Mail, Phone, MapPin, Send, Clock, Facebook, Twitter, Instagram, Linkedin } from 'lucide-react';
+import AlertModal from '@/components/alert-modal';
 import { type SharedData } from '@/types';
 
 export default function Contact() {
@@ -13,6 +16,19 @@ export default function Contact() {
         message: ''
     });
 
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
+
     const currentPath = url || '';
 
     const handleContactSubmit: FormEventHandler = (e) => {
@@ -20,7 +36,7 @@ export default function Contact() {
         // Handle contact form submission
         console.log('Contact form submitted:', contactForm);
         // You can add actual form submission logic here
-        alert('Thank you for your message! We will get back to you soon.');
+        showAlert('Success', 'Thank you for your message! We will get back to you soon.', 'success');
         setContactForm({ name: '', email: '', message: '' });
     };
 
@@ -347,6 +363,15 @@ export default function Contact() {
                     </div>
                 </div>
             </footer>
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </>
     );
 }

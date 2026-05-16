@@ -4,6 +4,8 @@ import { Head, router } from '@inertiajs/react';
 import { Building2, Package, Truck, CheckCircle, XCircle, DollarSign, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Breadcrumbs } from '@/components/breadcrumbs';
+import ConfirmModal from '@/components/confirm-modal';
+import { useState } from 'react';
 
 interface SupplierOrder {
     id: number;
@@ -37,16 +39,40 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 export default function SupplierDashboard({ orders, supplier }: Props) {
+    // Modal states
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
     const handleShip = (orderId: number) => {
-        if (confirm('Are you sure you want to mark this order as shipped?')) {
-            router.post(`/supplier/orders/${orderId}/ship`);
-        }
+        showConfirm(
+            'Mark as Shipped',
+            'Are you sure you want to mark this order as shipped?',
+            () => {
+                router.post(`/supplier/orders/${orderId}/ship`);
+            },
+            'warning'
+        );
     };
 
     const handleCancel = (orderId: number) => {
-        if (confirm('Are you sure you want to cancel this order?')) {
-            router.post(`/supplier/orders/${orderId}/cancel`);
-        }
+        showConfirm(
+            'Cancel Order',
+            'Are you sure you want to cancel this order?',
+            () => {
+                router.post(`/supplier/orders/${orderId}/cancel`);
+            },
+            'danger'
+        );
     };
 
     const getStatusBadge = (status: string) => {
@@ -168,6 +194,19 @@ export default function SupplierDashboard({ orders, supplier }: Props) {
                     </div>
                 </div>
             </div>
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
         </SupplierLayout>
     );
 }

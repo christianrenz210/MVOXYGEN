@@ -71,14 +71,24 @@ class CashierController extends Controller
             $userId = auth()->id();
             \Log::info("User ID: {$userId}");
             
-            $sale = Sale::create([
+            $saleData = [
                 'customer_name' => $request->customer_name,
                 'payment_method' => $request->payment_method,
                 'total_amount' => $request->total_amount,
                 'items' => $request->items,
                 'status' => 'completed',
                 'user_id' => $userId,
-            ]);
+            ];
+            
+            // Add GCash verification details if payment method is GCash
+            if ($request->payment_method === 'gcash') {
+                $saleData['gcash_reference'] = $request->gcash_reference;
+                $saleData['customer_phone'] = $request->customer_phone;
+                $saleData['payment_time'] = $request->payment_time;
+                \Log::info('GCash verification details added');
+            }
+            
+            $sale = Sale::create($saleData);
             
             \Log::info("Sale created with ID: {$sale->id}");
             
@@ -92,6 +102,60 @@ class CashierController extends Controller
             DB::rollback();
             \Log::error('Sale processing error: ' . $e->getMessage());
             return redirect()->back()->with('error', 'Error processing sale: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * End shift and generate daily transaction report.
+     */
+    public function endShift(Request $request)
+    {
+        try {
+            $userId = auth()->id();
+            $today = now()->format('Y-m-d');
+            
+            // Get all sales for the current cashier today
+            $sales = Sale::where('user_id', $userId)
+                ->whereDate('created_at', $today)
+                ->with('user')
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            // Calculate summary statistics
+            $totalSales = $sales->count();
+            $totalRevenue = $sales->sum('total_amount');
+            $cashSales = $sales->where('payment_method', 'cash')->sum('total_amount');
+            $gcashSales = $sales->where('payment_method', 'gcash')->sum('total_amount');
+            $cardSales = $sales->where('payment_method', 'card')->sum('total_amount');
+            
+            // Get unique customers
+            $uniqueCustomers = $sales->pluck('customer_name')->unique()->count();
+            
+            // Prepare report data
+            $reportData = [
+                'cashier_name' => auth()->user()->name,
+                'shift_date' => $today,
+                'shift_end_time' => now()->format('Y-m-d H:i:s'),
+                'total_sales' => $totalSales,
+                'total_revenue' => $totalRevenue,
+                'cash_sales' => $cashSales,
+                'gcash_sales' => $gcashSales,
+                'card_sales' => $cardSales,
+                'unique_customers' => $uniqueCustomers,
+                'sales' => $sales,
+            ];
+            
+            // Return Inertia response with report data as props
+            return Inertia::render('cashier/index', [
+                'tanks' => \App\Models\Tank::where('status', 'available')->get(),
+                'endShiftReport' => $reportData,
+                'auth' => [
+                    'user' => auth()->user()
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Error generating end shift report: ' . $e->getMessage());
         }
     }
 }

@@ -131,15 +131,18 @@ export default function UserSettings() {
                                 <div className="relative">
                                     {user.profile_image ? (
                                         <img
-                                            src={user.profile_image}
+                                            src={`/storage/${user.profile_image}`}
                                             alt="Profile"
                                             className="w-24 h-24 rounded-full object-cover border-2 border-gray-200"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                                e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                            }}
                                         />
-                                    ) : (
-                                        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
-                                            <User className="w-12 h-12 text-gray-400" />
-                                        </div>
-                                    )}
+                                    ) : null}
+                                    <div className={`w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200 ${user.profile_image ? 'hidden' : ''}`}>
+                                        <User className="w-12 h-12 text-gray-400" />
+                                    </div>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-600">User Profile</p>

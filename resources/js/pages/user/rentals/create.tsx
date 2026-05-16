@@ -66,6 +66,9 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
             delete submitData.street;
             delete submitData.house_number;
             delete submitData.landmark;
+            // Calculate delivery fee (10% of total)
+            const calculatedDeliveryFee = totalPrice * 0.10;
+            submitData.delivery_fee = calculatedDeliveryFee;
         }
 
         // Combine purpose and purpose_other if "Others" is selected
@@ -161,6 +164,12 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
         const tank = availableTankTypes.find(t => t.type === tankType);
         return sum + (tank ? tank.price : 0);
     }, 0);
+
+    // Calculate delivery fee (10% of total price for delivery)
+    const deliveryFee = formData.pickup_type === 'delivery' ? totalPrice * 0.10 : 0;
+
+    // Calculate total with delivery fee
+    const totalWithDelivery = totalPrice + deliveryFee;
 
     const getAutoPurpose = (tankType: string): string => {
         const lowerTankType = tankType.toLowerCase();
@@ -307,13 +316,17 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                                                                     src={tank.image}
                                                                     alt={tank.type}
                                                                     className="w-full h-full object-contain"
+                                                                    onError={(e) => {
+                                                                        e.currentTarget.style.display = 'none';
+                                                                        e.currentTarget.parentElement?.classList.add('hidden');
+                                                                        e.currentTarget.parentElement?.nextElementSibling?.classList.remove('hidden');
+                                                                    }}
                                                                 />
                                                             </div>
-                                                        ) : (
-                                                            <div className="w-full h-32 bg-gray-200 rounded-md mb-3 flex items-center justify-center">
-                                                                <Package className="w-10 h-10 text-gray-400" />
-                                                            </div>
-                                                        )}
+                                                        ) : null}
+                                                        <div className={`w-full h-32 bg-gray-200 rounded-md mb-3 flex items-center justify-center ${tank.image ? 'hidden' : ''}`}>
+                                                            <Package className="w-10 h-10 text-gray-400" />
+                                                        </div>
                                                         <h3 className="font-semibold text-gray-800 mb-1 text-sm">{tank.type}</h3>
                                                         <p className="text-sm text-gray-600 mb-1">₱{tank.price.toFixed(2)}</p>
                                                         <p className="text-xs text-gray-500">Stock: {tank.quantity}</p>
@@ -342,9 +355,21 @@ export default function RentalRequestCreate({ breadcrumbs = [{ title: 'Dashboard
                         {/* Total Price */}
                         {totalPrice > 0 && (
                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-lg font-medium text-gray-700">Total Price:</span>
-                                    <span className="text-2xl font-bold text-blue-600">₱{totalPrice.toFixed(2)}</span>
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-lg font-medium text-gray-700">Subtotal:</span>
+                                        <span className="text-xl font-semibold text-gray-800">₱{totalPrice.toFixed(2)}</span>
+                                    </div>
+                                    {formData.pickup_type === 'delivery' && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-lg font-medium text-gray-700">Delivery Fee (10%):</span>
+                                            <span className="text-xl font-semibold text-gray-800">₱{deliveryFee.toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between pt-2 border-t border-blue-300">
+                                        <span className="text-xl font-bold text-gray-800">Total:</span>
+                                        <span className="text-2xl font-bold text-blue-600">₱{totalWithDelivery.toFixed(2)}</span>
+                                    </div>
                                 </div>
                             </div>
                         )}

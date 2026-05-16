@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { User, Archive, RotateCcw, Shield } from 'lucide-react';
 import { router } from '@inertiajs/react';
 import { type BreadcrumbItem } from '@/types';
+import ConfirmModal from '@/components/confirm-modal';
+import { useState } from 'react';
 
 interface UserAccount {
     id: number;
@@ -36,24 +38,48 @@ export default function UserIndex() {
     const { props } = usePage<PageProps>();
     const { users, breadcrumbs, auth } = props;
 
+    // Modal states
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [confirmConfig, setConfirmConfig] = useState({
+        title: '',
+        message: '',
+        onConfirm: () => {},
+        type: 'warning' as 'warning' | 'danger' | 'info'
+    });
+
+    const showConfirm = (title: string, message: string, onConfirm: () => void, type: 'warning' | 'danger' | 'info' = 'warning') => {
+        setConfirmConfig({ title, message, onConfirm, type });
+        setShowConfirmModal(true);
+    };
+
     const handleArchive = (userId: number) => {
-        if (confirm('Are you sure you want to archive this user? They will not be able to log in.')) {
-            router.post(`/users/${userId}/archive`, {}, {
-                onSuccess: () => {
-                    router.reload();
-                }
-            });
-        }
+        showConfirm(
+            'Archive User',
+            'Are you sure you want to archive this user? They will not be able to log in.',
+            () => {
+                router.post(`/users/${userId}/archive`, {}, {
+                    onSuccess: () => {
+                        router.reload();
+                    }
+                });
+            },
+            'danger'
+        );
     };
 
     const handleRestore = (userId: number) => {
-        if (confirm('Are you sure you want to restore this user? They will be able to log in again.')) {
-            router.post(`/users/${userId}/restore`, {}, {
-                onSuccess: () => {
-                    router.reload();
-                }
-            });
-        }
+        showConfirm(
+            'Restore User',
+            'Are you sure you want to restore this user? They will be able to log in again.',
+            () => {
+                router.post(`/users/${userId}/restore`, {}, {
+                    onSuccess: () => {
+                        router.reload();
+                    }
+                });
+            },
+            'warning'
+        );
     };
 
     const getStatusBadge = (status: string) => {
@@ -144,6 +170,19 @@ export default function UserIndex() {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Confirm Modal */}
+            <ConfirmModal
+                isOpen={showConfirmModal}
+                onClose={() => setShowConfirmModal(false)}
+                onConfirm={() => {
+                    confirmConfig.onConfirm();
+                    setShowConfirmModal(false);
+                }}
+                title={confirmConfig.title}
+                message={confirmConfig.message}
+                type={confirmConfig.type}
+            />
         </AppLayout>
     );
 }

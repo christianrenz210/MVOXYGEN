@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Edit } from 'lucide-react';
 import { useForm } from '@inertiajs/react';
+import { sanitizePhoneDigits } from '@/utils/phone';
 
 interface Customer {
     id: number;
@@ -38,26 +39,27 @@ export default function EditCustomerDialog({ customer, onSuccess }: EditCustomer
 
     // Real-time validation for contact number
     const validateContactNumber = (value: string) => {
-        const phoneRegex = /^09\d{2}-\d{3}-\d{4}$/;
-        
-        if (value.length > 0 && !phoneRegex.test(value)) {
-            if (value.length < 11) {
-                return 'Contact number is too short. Must be exactly 11 characters (09XX-XXX-XXXX).';
-            }
-            return 'Contact number must be in format: 09XX-XXX-XXXX';
+        if (!value) {
+            return 'Contact number is required.';
         }
-        if (value.length === 11 && !phoneRegex.test(value)) {
-            return 'Contact number must be in format: 09XX-XXX-XXXX';
+
+        if (value.length !== 11) {
+            return 'Contact number must be exactly 11 digits.';
         }
+
+        if (!value.startsWith('09')) {
+            return 'Contact number must start with 09.';
+        }
+
         return '';
     };
 
     const [contactWarning, setContactWarning] = useState('');
 
     const handleContactNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setData('contact_number', value);
-        setContactWarning(validateContactNumber(value));
+        const digits = sanitizePhoneDigits(e.target.value);
+        setData('contact_number', digits);
+        setContactWarning(digits ? validateContactNumber(digits) : '');
     };
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -134,9 +136,11 @@ export default function EditCustomerDialog({ customer, onSuccess }: EditCustomer
                             <Input
                                 id="contact_number"
                                 type="tel"
+                                inputMode="numeric"
+                                maxLength={11}
                                 value={data.contact_number}
                                 onChange={handleContactNumberChange}
-                                placeholder="09XX-XXX-XXXX"
+                                placeholder="9XXXXXXXXXX"
                                 className={contactWarning ? 'border-orange-500 focus:border-orange-500' : ''}
                                 required
                             />

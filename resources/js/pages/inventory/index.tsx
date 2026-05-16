@@ -4,6 +4,7 @@ import { Head, router } from '@inertiajs/react';
 import { Package, FileText, Plus, AlertTriangle, Phone, X } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { useState, useEffect } from 'react';
+import AlertModal from '@/components/alert-modal';
 
 interface Product {
     id: number;
@@ -20,7 +21,6 @@ interface Maintenance {
     tank_type: string;
     quantity: number;
     condition: string;
-    valve: string;
 }
 
 interface Supplier {
@@ -29,11 +29,22 @@ interface Supplier {
     plant_name: string | null;
 }
 
+type InventoryStatus = 'available' | 'rented_out' | 'maintenance';
+
 interface Props {
     products: Product[];
     maintenances: Maintenance[];
     suppliers: Supplier[];
 }
+
+const createInitialFormState = () => ({
+    tank_type: '',
+    quantity: '',
+    price: '',
+    last_refilled: '',
+    status: 'available' as InventoryStatus,
+    image: null as File | null,
+});
 
 export default function InventoryIndex({ products, maintenances, suppliers }: Props) {
     const [showAddModal, setShowAddModal] = useState(false);
@@ -44,11 +55,15 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
     const [selectedMaintenance, setSelectedMaintenance] = useState<Maintenance | null>(null);
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [formData, setFormData] = useState({
-        tank_type: '',
-        quantity: '',
-        price: '',
-        last_refilled: '',
-        image: null as File | null
+        tanks: [{
+            tank_type: '',
+            quantity: '',
+            price: '',
+            last_refilled: '',
+            status: 'available' as InventoryStatus,
+            image: null as File | null,
+        }],
+        quantity_change_reason: ''
     });
     const [orderFormData, setOrderFormData] = useState({
         supplier_id: '',
@@ -60,11 +75,78 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
     const [maintenanceFormData, setMaintenanceFormData] = useState({
         tank_type: '',
         quantity: '',
-        condition: '',
-        valve: ''
+        condition: ''
     });
     const [selectedTankImage, setSelectedTankImage] = useState<string | null>(null);
+    const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
     const [showLowStockModal, setShowLowStockModal] = useState(false);
+
+    // Alert modal state
+    const [showAlertModal, setShowAlertModal] = useState(false);
+    const [alertConfig, setAlertConfig] = useState({
+        title: '',
+        message: '',
+        type: 'info' as 'success' | 'error' | 'warning' | 'info'
+    });
+
+    const updateEditPreview = (value: string | null) => {
+        setEditImagePreview(prev => {
+            if (prev && prev.startsWith('blob:')) {
+                URL.revokeObjectURL(prev);
+            }
+            return value;
+        });
+    };
+
+    const addTank = () => {
+        setFormData(prev => ({
+            ...prev,
+            tanks: [...prev.tanks, {
+                tank_type: '',
+                quantity: '',
+                price: '',
+                last_refilled: '',
+                status: 'available' as InventoryStatus,
+                image: null as File | null,
+            }]
+        }));
+    };
+
+    const removeTank = (index: number) => {
+        if (formData.tanks.length > 1) {
+            setFormData(prev => ({
+                ...prev,
+                tanks: prev.tanks.filter((_, i) => i !== index)
+            }));
+        }
+    };
+
+    const handleTankChange = (index: number, field: string, value: string | File | null) => {
+        const newTanks = [...formData.tanks];
+        newTanks[index] = { ...newTanks[index], [field]: value };
+        setFormData(prev => ({ ...prev, tanks: newTanks }));
+    };
+
+    const clearFormData = () => {
+        setFormData({
+            tanks: [{
+                tank_type: '',
+                quantity: '',
+                price: '',
+                last_refilled: '',
+                status: 'available' as InventoryStatus,
+                image: null as File | null,
+            }],
+            quantity_change_reason: ''
+        });
+        updateEditPreview(null);
+    };
+
+    const closeEditModal = () => {
+        setShowEditModal(false);
+        setSelectedProduct(null);
+        clearFormData();
+    };
 
     // Check for low stock items (quantity <= 5)
     const lowStockItems = products.filter(product => product.quantity <= 5);
@@ -76,6 +158,11 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
             setShowLowStockModal(true);
         }
     }, [hasLowStock]);
+
+    const showAlert = (title: string, message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+        setAlertConfig({ title, message, type });
+        setShowAlertModal(true);
+    };
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -190,15 +277,18 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                         <td className="py-3 px-4">
                                             {product.image ? (
                                                 <img
-                                                    src={product.image}
+                                                    src={`${product.image}?t=${Date.now()}`}
                                                     alt={product.tank_type}
                                                     className="w-12 h-12 object-cover rounded-lg"
+                                                    onError={(e) => {
+                                                        e.currentTarget.style.display = 'none';
+                                                        e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                    }}
                                                 />
-                                            ) : (
-                                                <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                                    <Package className="w-6 h-6 text-gray-400" />
-                                                </div>
-                                            )}
+                                            ) : null}
+                                            <div className={`w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center ${product.image ? 'hidden' : ''}`}>
+                                                <Package className="w-6 h-6 text-gray-400" />
+                                            </div>
                                         </td>
                                         <td className="py-3 px-4 font-medium text-gray-800">{product.tank_type}</td>
                                         <td className="py-3 px-4">
@@ -233,13 +323,17 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                 onClick={() => {
                                                     setSelectedProduct(product);
                                                     setFormData({
-                                                        tank_type: product.tank_type,
-                                                        quantity: product.quantity.toString(),
-                                                        price: (product.price || 0).toString(),
-                                                        last_refilled: product.last_refilled || '',
-                                                        status: product.status,
-                                                        image: null
+                                                        tanks: [{
+                                                            tank_type: product.tank_type,
+                                                            quantity: product.quantity.toString(),
+                                                            price: (product.price || 0).toString(),
+                                                            last_refilled: product.last_refilled || '',
+                                                            status: product.status as InventoryStatus,
+                                                            image: null as File | null,
+                                                        }],
+                                                        quantity_change_reason: ''
                                                     });
+                                                    updateEditPreview(product.image || null);
                                                     setShowEditModal(true);
                                                 }}
                                                 className="text-blue-600 hover:text-blue-800 font-medium"
@@ -282,7 +376,6 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Tank Type</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Quantity</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Condition</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Valve</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Action</th>
                                 </tr>
@@ -298,17 +391,19 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         src={tank.image}
                                                         alt={record.tank_type}
                                                         className="w-12 h-12 object-cover rounded-lg"
+                                                        onError={(e) => {
+                                                            e.currentTarget.style.display = 'none';
+                                                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                                                        }}
                                                     />
-                                                ) : (
-                                                    <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
-                                                        <Package className="w-6 h-6 text-gray-400" />
-                                                    </div>
-                                                )}
+                                                ) : null}
+                                                <div className={`w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center ${tank?.image ? 'hidden' : ''}`}>
+                                                    <Package className="w-6 h-6 text-gray-400" />
+                                                </div>
                                             </td>
                                             <td className="py-3 px-4 font-medium text-gray-800">{record.tank_type}</td>
                                             <td className="py-3 px-4 text-gray-800">{record.quantity}</td>
                                             <td className="py-3 px-4 text-gray-800">{record.condition}</td>
-                                            <td className="py-3 px-4 text-gray-800">{record.valve}</td>
                                             <td className="py-3 px-4">
                                                 <span className={`px-2 py-1 text-xs rounded-full ${
                                                     record.status === 'done'
@@ -356,8 +451,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
 
                 {/* Add Maintenance Modal */}
                 {showMaintenanceModal && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-gray-800">Add Maintenance</h3>
                                 <button
@@ -396,19 +491,26 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     </select>
 
                                     {/* Auto-display tank image */}
-                                    {selectedTankImage && (
-                                        <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Tank Image</p>
-                                            <img
-                                                src={selectedTankImage}
-                                                alt={maintenanceFormData.tank_type}
-                                                className="w-32 h-32 object-cover rounded-lg border border-gray-200"
-                                                onError={(e) => {
-                                                    (e.target as HTMLImageElement).style.display = 'none';
-                                                }}
-                                            />
+                                    <div className="mt-3">
+                                        <p className="text-sm font-medium text-gray-700 mb-2">Tank Image Preview</p>
+                                        <div className="relative w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden hover:border-blue-400 transition-colors">
+                                            {selectedTankImage ? (
+                                                <img
+                                                    src={selectedTankImage}
+                                                    alt={maintenanceFormData.tank_type}
+                                                    className="w-full h-full object-contain hover:object-cover transition-all duration-300"
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                />
+                                            ) : (
+                                                <div className="text-center">
+                                                    <Package className="w-16 h-16 mx-auto text-gray-400 mb-2" />
+                                                    <p className="text-sm text-gray-500">Select a tank type to see image</p>
+                                                </div>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
                                 </div>
 
                                 <div>
@@ -435,18 +537,6 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                         <option value="Fair">Fair</option>
                                         <option value="Poor">Poor</option>
                                         <option value="Damaged">Damaged</option>
-                                    </select>
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Valve</label>
-                                    <select
-                                        value={maintenanceFormData.valve}
-                                        onChange={(e) => setMaintenanceFormData({ ...maintenanceFormData, valve: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Select Valve Type</option>
-                                        <option value="Working">Working</option>
                                         <option value="Leaking">Leaking</option>
                                         <option value="Broken">Broken</option>
                                         <option value="Replacement Needed">Replacement Needed</option>
@@ -465,20 +555,18 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                             router.post('/inventory/maintenance', {
                                                 tank_type: maintenanceFormData.tank_type,
                                                 quantity: parseInt(maintenanceFormData.quantity),
-                                                condition: maintenanceFormData.condition,
-                                                valve: maintenanceFormData.valve
+                                                condition: maintenanceFormData.condition
                                             }, {
                                                 onSuccess: () => {
                                                     setShowMaintenanceModal(false);
                                                     setMaintenanceFormData({
                                                         tank_type: '',
                                                         quantity: '',
-                                                        condition: '',
-                                                        valve: ''
+                                                        condition: ''
                                                     });
                                                 },
                                                 onError: (errors) => {
-                                                    alert(Object.values(errors).join('\n'));
+                                                    showAlert('Error', Object.values(errors).join('\n'), 'error');
                                                 }
                                             });
                                         }}
@@ -494,8 +582,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
 
                 {/* View Maintenance Modal */}
                 {showViewModal && selectedMaintenance && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-gray-800">Maintenance Details</h3>
                                 <button
@@ -525,11 +613,6 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     <p className="text-lg font-semibold text-gray-800">{selectedMaintenance.condition}</p>
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-500 mb-1">Valve</label>
-                                    <p className="text-lg font-semibold text-gray-800">{selectedMaintenance.valve}</p>
-                                </div>
-
                                 <div className="flex gap-3 mt-6">
                                     <button
                                         onClick={() => {
@@ -548,8 +631,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
 
                 {/* Add Tanks Modal */}
                 {showAddModal && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-gray-800">Add Products</h3>
                                 <button
@@ -561,77 +644,113 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                             </div>
 
                             <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tank Type</label>
-                                    <select
-                                        value={formData.tank_type}
-                                        onChange={(e) => setFormData({ ...formData, tank_type: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    >
-                                        <option value="">Select Tank Type</option>
-                                        <option value="Oxygen Tank">Oxygen Tank</option>
-                                        <option value="Argon Small">Argon Small</option>
-                                        <option value="Argon Big">Argon Big</option>
-                                        <option value="Nitro">Nitro</option>
-                                        <option value="Medical Oxygen Big">Medical Oxygen Big</option>
-                                        <option value="Medical Oxygen Medium">Medical Oxygen Medium</option>
-                                        <option value="Flask Type Standard">Flask Type Standard</option>
-                                        <option value="Flask Type Small">Flask Type Small</option>
-                                        <option value="Industrial Oxygen">Industrial Oxygen</option>
-                                        <option value="Acetylene">Acetylene</option>
-                                    </select>
+                                {/* Multiple Tank Selections */}
+                                <div className="space-y-6">
+                                    {formData.tanks.map((tank, index) => (
+                                        <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <span className="text-sm font-medium text-gray-700">Tank #{index + 1}</span>
+                                                {formData.tanks.length > 1 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeTank(index)}
+                                                        className="text-sm text-red-600 hover:text-red-800 flex items-center gap-1"
+                                                    >
+                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                        Remove
+                                                    </button>
+                                                )}
+                                            </div>
+
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tank Type</label>
+                                                    <select
+                                                        value={tank.tank_type}
+                                                        onChange={(e) => handleTankChange(index, 'tank_type', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    >
+                                                        <option value="">Select Tank Type</option>
+                                                        <option value="Oxygen Tank">Oxygen Tank</option>
+                                                        <option value="Argon Small">Argon Small</option>
+                                                        <option value="Argon Big">Argon Big</option>
+                                                        <option value="Nitro">Nitro</option>
+                                                        <option value="Medical Oxygen Big">Medical Oxygen Big</option>
+                                                        <option value="Medical Oxygen Medium">Medical Oxygen Medium</option>
+                                                        <option value="Flask Type Standard">Flask Type Standard</option>
+                                                        <option value="Flask Type Small">Flask Type Small</option>
+                                                        <option value="Industrial Oxygen">Industrial Oxygen</option>
+                                                        <option value="Acetylene">Acetylene</option>
+                                                    </select>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                                                    <input
+                                                        type="number"
+                                                        value={tank.quantity}
+                                                        onChange={(e) => handleTankChange(index, 'quantity', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="1"
+                                                        min="1"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱)</label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={tank.price}
+                                                        onChange={(e) => handleTankChange(index, 'price', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                        placeholder="0.00"
+                                                        min="0"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Refilled</label>
+                                                    <input
+                                                        type="date"
+                                                        value={tank.last_refilled}
+                                                        onChange={(e) => handleTankChange(index, 'last_refilled', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                </div>
+
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tank Image</label>
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                handleTankChange(index, 'image', file);
+                                                            }
+                                                        }}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                    />
+                                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 10MB.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
-                                    <input
-                                        type="number"
-                                        value={formData.quantity}
-                                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="1"
-                                        min="1"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        value={formData.price}
-                                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="0.00"
-                                        min="0"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Refilled</label>
-                                    <input
-                                        type="date"
-                                        value={formData.last_refilled}
-                                        onChange={(e) => setFormData({ ...formData, last_refilled: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Tank Image</label>
-                                    <input
-                                        type="file"
-                                        accept="image/*"
-                                        onChange={(e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                                setFormData({ ...formData, image: file });
-                                            }
-                                        }}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 10MB.</p>
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={addTank}
+                                    className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    Add Another Tank
+                                </button>
 
                                 <div className="flex gap-3 mt-6">
                                     <button
@@ -642,25 +761,29 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     </button>
                                     <button
                                         onClick={() => {
-                                            const data = new FormData();
-                                            data.append('tank_type', formData.tank_type);
-                                            data.append('quantity', formData.quantity);
-                                            data.append('price', formData.price);
-                                            data.append('last_refilled', formData.last_refilled);
-                                            if (formData.image) {
-                                                data.append('image', formData.image);
-                                            }
-                                            router.post('/inventory', data, {
-                                                onSuccess: () => {
-                                                    setShowAddModal(false);
-                                                    setFormData({
-                                                        tank_type: '',
-                                                        quantity: '',
-                                                        price: '',
-                                                        last_refilled: '',
-                                                        image: null
-                                                    });
+                                            // Submit all tanks
+                                            formData.tanks.forEach((tank) => {
+                                                const data = new FormData();
+                                                data.append('tank_type', tank.tank_type);
+                                                data.append('quantity', tank.quantity);
+                                                data.append('price', tank.price);
+                                                data.append('last_refilled', tank.last_refilled);
+                                                if (tank.image) {
+                                                    data.append('image', tank.image);
                                                 }
+                                                router.post('/inventory', data);
+                                            });
+                                            setShowAddModal(false);
+                                            setFormData({
+                                                tanks: [{
+                                                    tank_type: '',
+                                                    quantity: '',
+                                                    price: '',
+                                                    last_refilled: '',
+                                                    status: 'available' as InventoryStatus,
+                                                    image: null as File | null,
+                                                }],
+                                                quantity_change_reason: ''
                                             });
                                         }}
                                         className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -676,8 +799,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                 
                 {/* Edit Tank Modal */}
                 {showEditModal && selectedProduct && (
-                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md mx-4">
+                    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <h3 className="text-xl font-bold text-gray-800">Edit Tank</h3>
                                 <button
@@ -695,8 +818,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Tank Type</label>
                                     <select
-                                        value={formData.tank_type}
-                                        onChange={(e) => setFormData({ ...formData, tank_type: e.target.value })}
+                                        value={formData.tanks[0].tank_type}
+                                        onChange={(e) => handleTankChange(0, 'tank_type', e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
                                         disabled
                                     >
@@ -716,12 +839,38 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 </div>
 
                                 <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
+                                    <input
+                                        type="number"
+                                        value={formData.tanks[0].quantity}
+                                        onChange={(e) => handleTankChange(0, 'quantity', e.target.value)}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="0"
+                                        min="0"
+                                        required
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Quantity Change *</label>
+                                    <textarea
+                                        value={formData.quantity_change_reason}
+                                        onChange={(e) => setFormData({ ...formData, quantity_change_reason: e.target.value })}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Please explain why you are changing the quantity..."
+                                        rows={3}
+                                        required
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Required when quantity is changed</p>
+                                </div>
+
+                                <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱)</label>
                                     <input
                                         type="number"
                                         step="0.01"
-                                        value={formData.price}
-                                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                        value={formData.tanks[0].price}
+                                        onChange={(e) => handleTankChange(0, 'price', e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         placeholder="0.00"
                                         min="0"
@@ -732,8 +881,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Last Refilled</label>
                                     <input
                                         type="date"
-                                        value={formData.last_refilled}
-                                        onChange={(e) => setFormData({ ...formData, last_refilled: e.target.value })}
+                                        value={formData.tanks[0].last_refilled}
+                                        onChange={(e) => handleTankChange(0, 'last_refilled', e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     />
                                 </div>
@@ -741,8 +890,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                                     <select
-                                        value={formData.status}
-                                        onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                                        value={formData.tanks[0].status}
+                                        onChange={(e) => handleTankChange(0, 'status', e.target.value)}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="available">Available</option>
@@ -759,15 +908,17 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                         onChange={(e) => {
                                             const file = e.target.files?.[0];
                                             if (file) {
-                                                setFormData({ ...formData, image: file });
+                                                const previewUrl = URL.createObjectURL(file);
+                                                handleTankChange(0, 'image', file);
+                                                updateEditPreview(previewUrl);
                                             }
                                         }}
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     />
                                     <p className="text-xs text-gray-500 mt-1">JPG, PNG or GIF. Max size 10MB.</p>
-                                    {selectedProduct.image && (
+                                    {editImagePreview && (
                                         <img
-                                            src={selectedProduct.image}
+                                            src={editImagePreview}
                                             alt="Current tank image"
                                             className="mt-2 w-20 h-20 object-cover rounded-lg"
                                         />
@@ -790,24 +941,25 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                             console.log('Form data:', formData);
                                             const data = new FormData();
                                             data.append('_method', 'PUT');
-                                            data.append('tank_type', formData.tank_type);
-                                            data.append('quantity', formData.quantity);
-                                            data.append('price', formData.price);
-                                            data.append('last_refilled', formData.last_refilled);
-                                            data.append('status', formData.status);
-                                            if (formData.image) {
-                                                data.append('image', formData.image);
-                                                console.log('Image file to upload:', formData.image);
+                                            data.append('tank_type', formData.tanks[0].tank_type);
+                                            data.append('quantity', formData.tanks[0].quantity);
+                                            data.append('price', formData.tanks[0].price);
+                                            data.append('last_refilled', formData.tanks[0].last_refilled);
+                                            data.append('status', formData.tanks[0].status);
+                                            data.append('quantity_change_reason', formData.quantity_change_reason);
+                                            if (formData.tanks[0].image) {
+                                                data.append('image', formData.tanks[0].image);
+                                                console.log('Image file to upload:', formData.tanks[0].image);
                                             }
                                             router.post(`/inventory/${selectedProduct.id}`, data, {
                                                 onSuccess: () => {
+                                                    router.reload({ only: ['products'] });
                                                     console.log('Update successful');
-                                                    setShowEditModal(false);
-                                                    setSelectedProduct(null);
+                                                    closeEditModal();
                                                 },
                                                 onError: (errors) => {
                                                     console.error('Update errors:', errors);
-                                                    alert('Error updating tank: ' + JSON.stringify(errors));
+                                                    showAlert('Error', 'Error updating tank: ' + JSON.stringify(errors), 'error');
                                                 }
                                             });
                                         }}
@@ -823,8 +975,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
 
                 {/* Low Stock Alert Modal */}
                 {showLowStockModal && hasLowStock && (
-                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg mx-4">
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
@@ -886,6 +1038,15 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                     </div>
                 )}
             </div>
+
+            {/* Alert Modal */}
+            <AlertModal
+                isOpen={showAlertModal}
+                onClose={() => setShowAlertModal(false)}
+                title={alertConfig.title}
+                message={alertConfig.message}
+                type={alertConfig.type}
+            />
         </AppLayout>
     );
 }

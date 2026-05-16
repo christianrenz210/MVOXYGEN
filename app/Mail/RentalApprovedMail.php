@@ -33,8 +33,8 @@ class RentalApprovedMail extends Mailable
                 'customerName' => $this->rentalRequest->customer->name,
                 'tankType' => $this->rentalRequest->tank_type,
                 'quantity' => $this->rentalRequest->quantity,
-                'startDate' => $this->rentalRequest->start_date->format('F d, Y'),
-                'endDate' => $this->rentalRequest->end_date->format('F d, Y'),
+                'startDate' => $this->rentalRequest->start_date ? $this->rentalRequest->start_date->format('F d, Y') : 'N/A',
+                'endDate' => $this->rentalRequest->end_date ? $this->rentalRequest->end_date->format('F d, Y') : 'N/A',
             ]
         );
     }
