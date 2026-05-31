@@ -161,13 +161,13 @@ export default function AdminSettings() {
                 )}
 
                 {/* Header */}
-                <div>
+                <div className="animate-fadeInUp">
                     <h1 className="text-3xl font-bold text-gray-800">Admin Settings</h1>
                     <p className="text-gray-600">Manage system settings and data</p>
                 </div>
 
                 {/* Profile Information */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <User className="w-5 h-5" />
@@ -292,7 +292,7 @@ export default function AdminSettings() {
                 </Card>
 
                 {/* Backup Section */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Database className="w-5 h-5" />
@@ -325,7 +325,7 @@ export default function AdminSettings() {
                 </Card>
 
                 {/* Additional Admin Settings */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                             <Upload className="w-5 h-5" />

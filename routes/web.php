@@ -250,6 +250,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('refills/{rentalRequest}', [RefillController::class, 'show'])->name('refills.show');
     Route::post('refills', [RefillController::class, 'store'])->name('refills.store');
     Route::post('refills/{rentalRequest}/approve', [RefillController::class, 'approve'])->name('refills.approve');
+    Route::post('refills/{rentalRequest}/dispatch', [RefillController::class, 'dispatchDelivery'])->name('refills.dispatch');
     Route::post('refills/{rentalRequest}/reject', [RefillController::class, 'reject'])->name('refills.reject');
     Route::post('refills/{rentalRequest}/return', [RefillController::class, 'markAsReturned'])->name('refills.return');
     Route::put('refills/{rentalRequest}/notes', [RefillController::class, 'updateNotes'])->name('refills.update-notes');
@@ -288,6 +289,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('inventory', [InventoryController::class, 'store'])->name('inventory.store');
     Route::put('inventory/{tank}', [InventoryController::class, 'update'])->name('inventory.update');
     Route::post('inventory/maintenance', [InventoryController::class, 'storeMaintenance'])->name('inventory.maintenance.store');
+    Route::post('inventory/maintenance/{maintenance}/start', [InventoryController::class, 'startMaintenance'])->name('inventory.maintenance.start');
     Route::post('inventory/maintenance/{maintenance}/complete', [InventoryController::class, 'completeMaintenance'])->name('inventory.maintenance.complete');
 
     // Purchase Order Routes
@@ -323,6 +325,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Rental Routes (Approve, Reject, etc.)
     Route::post('rentals/{rentalRequest}/approve', [RentalController::class, 'approve'])->name('rentals.approve');
+    Route::post('rentals/{rentalRequest}/dispatch', [RentalController::class, 'dispatchDelivery'])->name('rentals.dispatch');
     Route::post('rentals/{rentalRequest}/reject', [RentalController::class, 'reject'])->name('rentals.reject');
     Route::post('rentals/{rentalRequest}/cancel', [RentalController::class, 'cancel'])->name('rentals.cancel');
     Route::post('rentals/{rentalRequest}/return', [RentalController::class, 'markAsReturned'])->name('rentals.return');

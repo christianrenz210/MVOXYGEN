@@ -36,7 +36,22 @@ export default function RentalTracking({
   breadcrumbs = [{ title: 'Dashboard', href: '/user/dashboard' }],
   rental 
 }: Props) {
-  const [currentLocation, setCurrentLocation] = useState(rental?.current_location);
+  // Generate a mock location based on delivery location if no current location is provided
+  const getMockCurrentLocation = () => {
+    if (rental?.current_location) return rental.current_location;
+    
+    // If no real location but in transit, generate a fake one slightly offset
+    if (rental?.status === 'in_transit' && rental.delivery_location?.lat != null) {
+      // Fake offset roughly a few blocks away
+      return {
+        lat: Number(rental.delivery_location.lat) - 0.005,
+        lng: Number(rental.delivery_location.lng) - 0.005
+      };
+    }
+    return undefined;
+  };
+
+  const [currentLocation, setCurrentLocation] = useState(getMockCurrentLocation());
   const [isDelivered, setIsDelivered] = useState(rental?.status === 'delivered');
 
   // Simulate real-time location updates (in production, this would use WebSocket or polling)
@@ -49,7 +64,23 @@ export default function RentalTracking({
           onSuccess: (page) => {
             const updatedRental = page.props.rental as any;
             if (updatedRental) {
-              setCurrentLocation(updatedRental.current_location);
+              if (updatedRental.current_location) {
+                setCurrentLocation(updatedRental.current_location);
+              } else if (updatedRental.status === 'in_transit' && updatedRental.delivery_location?.lat != null) {
+                // Simulate moving closer (random jitter)
+                setCurrentLocation(prev => {
+                  if (!prev) return getMockCurrentLocation();
+                  
+                  const targetLat = Number(updatedRental.delivery_location.lat);
+                  const targetLng = Number(updatedRental.delivery_location.lng);
+                  
+                  // Move 20% closer to destination every update
+                  return {
+                    lat: Number(prev.lat) + (targetLat - Number(prev.lat)) * 0.2,
+                    lng: Number(prev.lng) + (targetLng - Number(prev.lng)) * 0.2
+                  };
+                });
+              }
               setIsDelivered(updatedRental.status === 'delivered');
             }
           }

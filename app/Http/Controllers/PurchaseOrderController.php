@@ -145,6 +145,19 @@ class PurchaseOrderController extends Controller
                 $totalAmount += $item['quantity'] * $item['price'];
             }
 
+            // Validate stock availability before creating the order
+            foreach ($validated['items'] as $item) {
+                $product = SupplierProduct::find($item['product_id']);
+                if (!$product) {
+                    DB::rollBack();
+                    return redirect()->back()->with('error', 'Product not found.');
+                }
+                if ($product->stock_quantity < $item['quantity']) {
+                    DB::rollBack();
+                    return redirect()->back()->with('error', "Insufficient stock for {$product->product_name}. Available: {$product->stock_quantity}, Requested: {$item['quantity']}.");
+                }
+            }
+
             $purchaseOrder = PurchaseOrder::create([
                 'supplier_id' => $validated['supplier_id'],
                 'po_number' => $validated['po_number'],
@@ -168,6 +181,9 @@ class PurchaseOrderController extends Controller
                     'price' => $item['price'],
                     'total' => $item['quantity'] * $item['price'],
                 ]);
+
+                // Deduct the ordered quantity from supplier's stock
+                $product->decrement('stock_quantity', $item['quantity']);
             }
 
             DB::commit();
@@ -311,38 +327,34 @@ class PurchaseOrderController extends Controller
     private function addToInventory(string $productName, int $quantity, float $price)
     {
         \Log::info("Adding to inventory: Product={$productName}, Quantity={$quantity}, Price={$price}");
-        
+
         // Check if tank already exists
         $tank = Tank::where('tank_type', $productName)->first();
-        
-        if ($tank) {
-            \Log::info("Found existing tank: ID={$tank->id}, Current Quantity={$tank->quantity}, Status={$tank->status}");
-            // Update existing tank quantity
-            $oldQuantity = $tank->quantity;
-            $tank->quantity += $quantity;
-            $tank->price = $price; // Update price to latest
-            $tank->last_refilled = now(); // Update refill date
-            $tank->status = 'available'; // Force status to available when receiving items
-            $tank->save();
-            \Log::info("Updated tank quantity from {$oldQuantity} to: {$tank->quantity}, status to available");
-            
-            // Verify the update
-            $updatedTank = Tank::find($tank->id);
+
+        if (!$tank) {
+            \Log::info("No existing tank found for {$productName}. Skipping auto-create so it can be added manually via inventory modal.");
+            return;
+        }
+
+        \Log::info("Found existing tank: ID={$tank->id}, Current Quantity={$tank->quantity}, Status={$tank->status}");
+
+        // Update existing tank quantity
+        $oldQuantity = $tank->quantity;
+        $tank->quantity += $quantity;
+        $tank->price = $price; // Update price to latest
+        $tank->last_refilled = now(); // Update refill date
+        $tank->status = 'available'; // Force status to available when receiving items
+        $tank->save();
+
+        \Log::info("Updated tank quantity from {$oldQuantity} to: {$tank->quantity}, status to available");
+
+        // Verify the update
+        $updatedTank = Tank::find($tank->id);
+        if ($updatedTank) {
             \Log::info("Verification - Tank quantity in database: {$updatedTank->quantity}, status: {$updatedTank->status}");
-        } else {
-            \Log::info("Creating new tank for: {$productName}");
-            // Create new tank entry
-            $newTank = Tank::create([
-                'tank_type' => $productName,
-                'quantity' => $quantity,
-                'price' => $price,
-                'status' => 'available',
-                'last_refilled' => now(),
-            ]);
-            \Log::info("Created new tank with ID: {$newTank->id} and quantity: {$quantity}");
         }
     }
-    
+
     /**
      * Mark all items of a purchase order as fully received and add to inventory.
      */
@@ -399,20 +411,37 @@ class PurchaseOrderController extends Controller
             return redirect()->back()->with('error', 'Cannot cancel an order that has already received some items.');
         }
 
-        $order->update(['status' => 'cancelled']);
+        DB::beginTransaction();
+        try {
+            // Restore supplier stock for each item in the order
+            foreach ($order->items as $item) {
+                if ($item->supplier_product_id) {
+                    $product = SupplierProduct::find($item->supplier_product_id);
+                    if ($product) {
+                        $product->increment('stock_quantity', $item->quantity);
+                    }
+                }
+            }
 
-        // Notify supplier
-        if ($order->supplier && $order->supplier->user_id) {
-            Notification::create([
-                'user_id' => $order->supplier->user_id,
-                'type' => 'warning',
-                'title' => 'Purchase Order Cancelled',
-                'message' => "Purchase order {$order->po_number} has been cancelled by the admin.",
-                'link' => '/supplier/orders',
-            ]);
+            $order->update(['status' => 'cancelled']);
+
+            // Notify supplier
+            if ($order->supplier && $order->supplier->user_id) {
+                Notification::create([
+                    'user_id' => $order->supplier->user_id,
+                    'type' => 'warning',
+                    'title' => 'Purchase Order Cancelled',
+                    'message' => "Purchase order {$order->po_number} has been cancelled by the admin.",
+                    'link' => '/supplier/orders',
+                ]);
+            }
+
+            DB::commit();
+            return redirect()->back()->with('success', "Purchase order {$order->po_number} has been cancelled and supplier stock restored.");
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return redirect()->back()->with('error', 'Failed to cancel purchase order: ' . $e->getMessage());
         }
-
-        return redirect()->back()->with('success', "Purchase order {$order->po_number} has been cancelled.");
     }
 
     /**

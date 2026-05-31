@@ -3,7 +3,7 @@ import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { Package, FileText, Plus, AlertTriangle, Phone, X } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import AlertModal from '@/components/alert-modal';
 
 interface Product {
@@ -14,6 +14,7 @@ interface Product {
     last_refilled: string | null;
     status: string;
     image?: string;
+    active_rental_count?: number;
 }
 
 interface Maintenance {
@@ -21,6 +22,7 @@ interface Maintenance {
     tank_type: string;
     quantity: number;
     condition: string;
+    status: 'pending' | 'in_maintenance' | 'done';
 }
 
 interface Supplier {
@@ -30,11 +32,20 @@ interface Supplier {
 }
 
 type InventoryStatus = 'available' | 'rented_out' | 'maintenance';
+type InventoryFilter = 'all' | InventoryStatus;
+
+interface TankOption {
+    name: string;
+    price: number;
+    quantity: number;
+    orderDate: string | null;
+}
 
 interface Props {
     products: Product[];
     maintenances: Maintenance[];
     suppliers: Supplier[];
+    availableTankOptions: TankOption[];
 }
 
 const createInitialFormState = () => ({
@@ -46,7 +57,7 @@ const createInitialFormState = () => ({
     image: null as File | null,
 });
 
-export default function InventoryIndex({ products, maintenances, suppliers }: Props) {
+export default function InventoryIndex({ products, maintenances, suppliers, availableTankOptions }: Props) {
     const [showAddModal, setShowAddModal] = useState(false);
     const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
     const [showViewModal, setShowViewModal] = useState(false);
@@ -80,6 +91,8 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
     const [selectedTankImage, setSelectedTankImage] = useState<string | null>(null);
     const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
     const [showLowStockModal, setShowLowStockModal] = useState(false);
+    const [isQuantityEditEnabled, setIsQuantityEditEnabled] = useState(false);
+    const [activeInventoryFilter, setActiveInventoryFilter] = useState<InventoryFilter>('all');
 
     // Alert modal state
     const [showAlertModal, setShowAlertModal] = useState(false);
@@ -89,6 +102,58 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
         type: 'info' as 'success' | 'error' | 'warning' | 'info'
     });
 
+    const existingTankTypes = useMemo(() => new Set(products.map(product => product.tank_type)), [products]);
+
+    const filteredProducts = useMemo(() => {
+        if (activeInventoryFilter === 'all') {
+            return products;
+        }
+
+        if (activeInventoryFilter === 'rented_out') {
+            return products.filter(product => (product.active_rental_count ?? 0) > 0);
+        }
+
+        return products.filter(product => product.status === activeInventoryFilter);
+    }, [products, activeInventoryFilter]);
+
+    const isActiveRentalView = activeInventoryFilter === 'rented_out';
+    const tableColumnCount = isActiveRentalView ? 5 : 7;
+
+    const {
+        totalQuantity,
+        availableCount,
+        maintenanceCount,
+        activeRentalCount,
+    } = useMemo(() => {
+        let totalQuantity = 0;
+        let availableCount = 0;
+        let maintenanceCount = 0;
+        let activeRentalCount = 0;
+
+        products.forEach(product => {
+            totalQuantity += Number(product.quantity ?? 0);
+
+            if (product.status === 'available') {
+                availableCount += 1;
+            }
+
+            if (product.status === 'maintenance') {
+                maintenanceCount += 1;
+            }
+
+            if ((product.active_rental_count ?? 0) > 0) {
+                activeRentalCount += 1;
+            }
+        });
+
+        return {
+            totalQuantity,
+            availableCount,
+            maintenanceCount,
+            activeRentalCount,
+        };
+    }, [products]);
+
     const updateEditPreview = (value: string | null) => {
         setEditImagePreview(prev => {
             if (prev && prev.startsWith('blob:')) {
@@ -96,6 +161,10 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
             }
             return value;
         });
+    };
+
+    const getOptionForTankType = (tankType: string) => {
+        return availableTankOptions.find(opt => opt.name === tankType);
     };
 
     const addTank = () => {
@@ -124,7 +193,35 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
     const handleTankChange = (index: number, field: string, value: string | File | null) => {
         const newTanks = [...formData.tanks];
         newTanks[index] = { ...newTanks[index], [field]: value };
+
+        if (field === 'tank_type' && typeof value === 'string') {
+            const option = getOptionForTankType(value);
+            newTanks[index].price = option ? option.price.toFixed(2) : '';
+            newTanks[index].quantity = option ? option.quantity.toString() : '';
+            newTanks[index].last_refilled = option?.orderDate ?? '';
+        }
+
         setFormData(prev => ({ ...prev, tanks: newTanks }));
+    };
+
+    const handleQuantityEditToggle = (checked: boolean) => {
+        setIsQuantityEditEnabled(checked);
+        if (!checked && selectedProduct) {
+            setFormData(prev => {
+                const updatedTanks = [...prev.tanks];
+                if (updatedTanks[0]) {
+                    updatedTanks[0] = {
+                        ...updatedTanks[0],
+                        quantity: selectedProduct.quantity.toString(),
+                    };
+                }
+                return {
+                    ...prev,
+                    tanks: updatedTanks,
+                    quantity_change_reason: '',
+                };
+            });
+        }
     };
 
     const clearFormData = () => {
@@ -145,6 +242,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
     const closeEditModal = () => {
         setShowEditModal(false);
         setSelectedProduct(null);
+        setIsQuantityEditEnabled(false);
         clearFormData();
     };
 
@@ -179,7 +277,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                 </div>
 
                 {/* Header */}
-                <div className="mb-8 flex justify-between items-center">
+                <div className="mb-8 flex justify-between items-center animate-fadeInUp">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Inventory</h1>
                         <p className="text-gray-600">Manage oxygen tank inventory and stock levels</p>
@@ -197,12 +295,26 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500">
+                    <div
+                        onClick={() => setActiveInventoryFilter('all')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setActiveInventoryFilter('all');
+                            }
+                        }}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 transition-all animate-fadeInUp cursor-pointer hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-300 ${
+                            activeInventoryFilter === 'all' ? 'border-blue-600 ring-2 ring-blue-200' : 'border-blue-500'
+                        }`}
+                        style={{ animationDelay: '0.1s' }}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Total Tanks</p>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    {products.reduce((sum, p) => sum + p.quantity, 0)}
+                                    {totalQuantity}
                                 </p>
                             </div>
                             <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
@@ -211,12 +323,26 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500">
+                    <div
+                        onClick={() => setActiveInventoryFilter('available')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setActiveInventoryFilter('available');
+                            }
+                        }}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 transition-all animate-fadeInUp cursor-pointer hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-green-300 ${
+                            activeInventoryFilter === 'available' ? 'border-green-600 ring-2 ring-green-200' : 'border-green-500'
+                        }`}
+                        style={{ animationDelay: '0.2s' }}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Available</p>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    {products.filter(p => p.status === 'available').length}
+                                    {availableCount}
                                 </p>
                             </div>
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
@@ -225,12 +351,26 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500">
+                    <div
+                        onClick={() => setActiveInventoryFilter('rented_out')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setActiveInventoryFilter('rented_out');
+                            }
+                        }}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 transition-all animate-fadeInUp cursor-pointer hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-yellow-300 ${
+                            activeInventoryFilter === 'rented_out' ? 'border-yellow-600 ring-2 ring-yellow-200' : 'border-yellow-500'
+                        }`}
+                        style={{ animationDelay: '0.3s' }}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-gray-500 text-sm">Rented Out</p>
+                                <p className="text-gray-500 text-sm">Active Rentals</p>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    {products.filter(p => p.status === 'rented_out').length}
+                                    {activeRentalCount}
                                 </p>
                             </div>
                             <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
@@ -239,12 +379,26 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500">
+                    <div
+                        onClick={() => setActiveInventoryFilter('maintenance')}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                setActiveInventoryFilter('maintenance');
+                            }
+                        }}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 transition-all animate-fadeInUp cursor-pointer hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-red-300 ${
+                            activeInventoryFilter === 'maintenance' ? 'border-red-600 ring-2 ring-red-200' : 'border-red-500'
+                        }`}
+                        style={{ animationDelay: '0.4s' }}
+                    >
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">In Maintenance</p>
                                 <p className="text-2xl font-bold text-gray-800">
-                                    {products.filter(p => p.status === 'maintenance').length}
+                                    {maintenanceCount}
                                 </p>
                             </div>
                             <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
@@ -255,7 +409,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                 </div>
 
                 {/* Inventory Table */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="bg-white rounded-xl shadow-lg p-6 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
                     <h2 className="text-xl font-bold text-gray-800 mb-4">All Tanks</h2>
 
                     <div className="overflow-x-auto">
@@ -264,16 +418,31 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 <tr className="border-b border-gray-200">
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Image</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Tank Type</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Quantity</th>
+                                    {!isActiveRentalView && (
+                                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Quantity</th>
+                                    )}
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Price</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Last Refilled</th>
                                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                                    {!isActiveRentalView && (
+                                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Actions</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody>
-                                {products.map((product) => (
-                                    <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50">
+                                {filteredProducts.length === 0 && (
+                                    <tr>
+                                        <td colSpan={tableColumnCount} className="py-12 text-center text-gray-500">
+                                            {activeInventoryFilter === 'all'
+                                                ? 'No tanks found.'
+                                                : activeInventoryFilter === 'rented_out'
+                                                    ? 'No active rental records found yet.'
+                                                    : 'No tanks match the selected status filter.'}
+                                        </td>
+                                    </tr>
+                                )}
+                                {filteredProducts.map((product) => (
+                                    <tr key={product.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                                         <td className="py-3 px-4">
                                             {product.image ? (
                                                 <img
@@ -291,19 +460,21 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                             </div>
                                         </td>
                                         <td className="py-3 px-4 font-medium text-gray-800">{product.tank_type}</td>
-                                        <td className="py-3 px-4">
-                                            <div className="flex items-center gap-2">
-                                                <span className={`font-semibold ${product.quantity <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
-                                                    {product.quantity}
-                                                </span>
-                                                {product.quantity <= 5 && (
-                                                    <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium">
-                                                        Low Stock
+                                        {!isActiveRentalView && (
+                                            <td className="py-3 px-4">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-semibold ${product.quantity <= 5 ? 'text-red-600' : 'text-gray-800'}`}>
+                                                        {product.quantity}
                                                     </span>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td className="py-3 px-4 text-gray-800">₱{parseFloat(product.price || 0).toFixed(2)}</td>
+                                                    {product.quantity <= 5 && (
+                                                        <span className="px-2 py-0.5 text-xs rounded-full bg-red-100 text-red-700 font-medium">
+                                                            Low Stock
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        )}
+                                        <td className="py-3 px-4 text-gray-800">₱{Number(product.price ?? 0).toFixed(2)}</td>
                                         <td className="py-3 px-4 text-gray-800">
                                             {product.last_refilled ? new Date(product.last_refilled).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
                                         </td>
@@ -315,32 +486,40 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         ? 'bg-yellow-100 text-yellow-800'
                                                         : 'bg-red-100 text-red-800'
                                             }`}>
-                                                {product.status === 'available' ? 'Available' : product.status === 'rented_out' ? 'Rented Out' : 'In Maintenance'}
+                                                {product.status === 'available' ? 'Available' : product.status === 'rented_out' ? 'Rented' : 'In Maintenance'}
                                             </span>
+                                            {(product.active_rental_count ?? 0) > 0 && (
+                                                <span className="ml-2 text-xs text-yellow-600 font-medium">
+                                                    {product.active_rental_count} active rental{(product.active_rental_count ?? 0) === 1 ? '' : 's'}
+                                                </span>
+                                            )}
                                         </td>
-                                        <td className="py-3 px-4">
-                                            <button
-                                                onClick={() => {
-                                                    setSelectedProduct(product);
-                                                    setFormData({
-                                                        tanks: [{
-                                                            tank_type: product.tank_type,
-                                                            quantity: product.quantity.toString(),
-                                                            price: (product.price || 0).toString(),
-                                                            last_refilled: product.last_refilled || '',
-                                                            status: product.status as InventoryStatus,
-                                                            image: null as File | null,
-                                                        }],
-                                                        quantity_change_reason: ''
-                                                    });
-                                                    updateEditPreview(product.image || null);
-                                                    setShowEditModal(true);
-                                                }}
-                                                className="text-blue-600 hover:text-blue-800 font-medium"
-                                            >
-                                                Edit
-                                            </button>
-                                        </td>
+                                        {!isActiveRentalView && (
+                                            <td className="py-3 px-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setIsQuantityEditEnabled(false);
+                                                        setSelectedProduct(product);
+                                                        setFormData({
+                                                            tanks: [{
+                                                                tank_type: product.tank_type,
+                                                                quantity: product.quantity.toString(),
+                                                                price: (product.price || 0).toString(),
+                                                                last_refilled: product.last_refilled || '',
+                                                                status: product.status as InventoryStatus,
+                                                                image: null as File | null,
+                                                            }],
+                                                            quantity_change_reason: ''
+                                                        });
+                                                        updateEditPreview(product.image || null);
+                                                        setShowEditModal(true);
+                                                    }}
+                                                    className="text-blue-600 hover:text-blue-800 font-medium"
+                                                >
+                                                    Edit
+                                                </button>
+                                            </td>
+                                        )}
                                     </tr>
                                 ))}
                             </tbody>
@@ -356,7 +535,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                 </div>
 
                 {/* Maintenance Section */}
-                <div className="bg-white rounded-xl shadow-lg p-6 mt-8">
+                <div className="bg-white rounded-xl shadow-lg p-6 mt-8 animate-fadeInUp" style={{ animationDelay: '0.6s' }}>
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-gray-800">Maintenance</h2>
                         <button
@@ -405,15 +584,27 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                             <td className="py-3 px-4 text-gray-800">{record.quantity}</td>
                                             <td className="py-3 px-4 text-gray-800">{record.condition}</td>
                                             <td className="py-3 px-4">
-                                                <span className={`px-2 py-1 text-xs rounded-full ${
-                                                    record.status === 'done'
-                                                        ? 'bg-green-100 text-green-800'
-                                                        : 'bg-yellow-100 text-yellow-800'
-                                                }`}>
-                                                    {record.status === 'done' ? 'Done' : 'Pending'}
-                                                </span>
+                                                {record.status === 'pending' && (
+                                                    <span className="px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-800">Pending</span>
+                                                )}
+                                                {record.status === 'in_maintenance' && (
+                                                    <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">In Maintenance</span>
+                                                )}
+                                                {record.status === 'done' && (
+                                                    <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">Done</span>
+                                                )}
                                             </td>
                                             <td className="py-3 px-4">
+                                                {record.status === 'pending' && (
+                                                    <button
+                                                        onClick={() => {
+                                                            router.post(`/inventory/maintenance/${record.id}/start`);
+                                                        }}
+                                                        className="text-blue-600 hover:text-blue-800 font-medium mr-3"
+                                                    >
+                                                        In Maintenance
+                                                    </button>
+                                                )}
                                                 {record.status !== 'done' && (
                                                     <button
                                                         onClick={() => {
@@ -478,39 +669,13 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                     >
                                         <option value="">Select Tank Type</option>
-                                        <option value="Oxygen Tank">Oxygen Tank</option>
-                                        <option value="Argon Small">Argon Small</option>
-                                        <option value="Argon Big">Argon Big</option>
-                                        <option value="Nitro">Nitro</option>
-                                        <option value="Medical Oxygen Big">Medical Oxygen Big</option>
-                                        <option value="Medical Oxygen Medium">Medical Oxygen Medium</option>
-                                        <option value="Flask Type Standard">Flask Type Standard</option>
-                                        <option value="Flask Type Small">Flask Type Small</option>
-                                        <option value="Industrial Oxygen">Industrial Oxygen</option>
-                                        <option value="Acetylene">Acetylene</option>
+                                        {availableTankOptions.map((option) => (
+                                            <option key={option.name} value={option.name}>{option.name}</option>
+                                        ))}
                                     </select>
-
-                                    {/* Auto-display tank image */}
-                                    <div className="mt-3">
-                                        <p className="text-sm font-medium text-gray-700 mb-2">Tank Image Preview</p>
-                                        <div className="relative w-full h-48 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg border-2 border-dashed border-gray-300 flex items-center justify-center overflow-hidden hover:border-blue-400 transition-colors">
-                                            {selectedTankImage ? (
-                                                <img
-                                                    src={selectedTankImage}
-                                                    alt={maintenanceFormData.tank_type}
-                                                    className="w-full h-full object-contain hover:object-cover transition-all duration-300"
-                                                    onError={(e) => {
-                                                        (e.target as HTMLImageElement).style.display = 'none';
-                                                    }}
-                                                />
-                                            ) : (
-                                                <div className="text-center">
-                                                    <Package className="w-16 h-16 mx-auto text-gray-400 mb-2" />
-                                                    <p className="text-sm text-gray-500">Select a tank type to see image</p>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
+                                    {availableTankOptions.length === 0 && (
+                                        <p className="text-xs text-red-600 mt-1">No tank types available. Please create and receive purchase orders first.</p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -555,14 +720,14 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                             router.post('/inventory/maintenance', {
                                                 tank_type: maintenanceFormData.tank_type,
                                                 quantity: parseInt(maintenanceFormData.quantity),
-                                                condition: maintenanceFormData.condition
+                                                condition: maintenanceFormData.condition,
                                             }, {
                                                 onSuccess: () => {
                                                     setShowMaintenanceModal(false);
                                                     setMaintenanceFormData({
                                                         tank_type: '',
                                                         quantity: '',
-                                                        condition: ''
+                                                        condition: '',
                                                     });
                                                 },
                                                 onError: (errors) => {
@@ -646,7 +811,13 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                             <div className="space-y-4">
                                 {/* Multiple Tank Selections */}
                                 <div className="space-y-6">
-                                    {formData.tanks.map((tank, index) => (
+                                    {formData.tanks.map((tank, index) => {
+                                        const matchingOption = availableTankOptions.find(option => option.name === tank.tank_type);
+                                        const autoPrice = matchingOption ? matchingOption.price.toFixed(2) : '';
+                                        const autoQuantity = matchingOption ? matchingOption.quantity.toString() : '';
+                                        const autoLastRefilled = matchingOption?.orderDate ?? '';
+
+                                        return (
                                         <div key={index} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
                                             <div className="flex items-center justify-between mb-3">
                                                 <span className="text-sm font-medium text-gray-700">Tank #{index + 1}</span>
@@ -673,17 +844,19 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                     >
                                                         <option value="">Select Tank Type</option>
-                                                        <option value="Oxygen Tank">Oxygen Tank</option>
-                                                        <option value="Argon Small">Argon Small</option>
-                                                        <option value="Argon Big">Argon Big</option>
-                                                        <option value="Nitro">Nitro</option>
-                                                        <option value="Medical Oxygen Big">Medical Oxygen Big</option>
-                                                        <option value="Medical Oxygen Medium">Medical Oxygen Medium</option>
-                                                        <option value="Flask Type Standard">Flask Type Standard</option>
-                                                        <option value="Flask Type Small">Flask Type Small</option>
-                                                        <option value="Industrial Oxygen">Industrial Oxygen</option>
-                                                        <option value="Acetylene">Acetylene</option>
+                                                        {availableTankOptions.map((option) => {
+                                                            const isSelectedElsewhere = formData.tanks.some((t, i) => i !== index && t.tank_type === option.name);
+                                                            const isDisabled = existingTankTypes.has(option.name) || isSelectedElsewhere;
+                                                            return (
+                                                                <option key={option.name} value={option.name} disabled={isDisabled}>
+                                                                    {isDisabled ? `${option.name} (unavailable)` : option.name}
+                                                                </option>
+                                                            );
+                                                        })}
                                                     </select>
+                                                    {availableTankOptions.length === 0 && (
+                                                        <p className="text-xs text-red-600 mt-1">No tank types available. Please create and receive purchase orders first.</p>
+                                                    )}
                                                 </div>
 
                                                 <div>
@@ -696,6 +869,9 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         placeholder="1"
                                                         min="1"
                                                     />
+                                                    {tank.tank_type && matchingOption && tank.quantity === autoQuantity && (
+                                                        <p className="text-xs text-blue-600 mt-1">Quantity auto-filled from latest purchase order. Adjust if needed.</p>
+                                                    )}
                                                 </div>
 
                                                 <div>
@@ -709,6 +885,9 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         placeholder="0.00"
                                                         min="0"
                                                     />
+                                                    {tank.tank_type && matchingOption && tank.price === autoPrice && (
+                                                        <p className="text-xs text-blue-600 mt-1">Price auto-filled from latest purchase order. Adjust if needed.</p>
+                                                    )}
                                                 </div>
 
                                                 <div>
@@ -719,6 +898,9 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                         onChange={(e) => handleTankChange(index, 'last_refilled', e.target.value)}
                                                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                     />
+                                                    {tank.tank_type && matchingOption?.orderDate && tank.last_refilled === autoLastRefilled && (
+                                                        <p className="text-xs text-blue-600 mt-1">Last refilled date auto-filled from purchase order date. Adjust if needed.</p>
+                                                    )}
                                                 </div>
 
                                                 <div>
@@ -738,7 +920,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                                 </div>
                                             </div>
                                         </div>
-                                    ))}
+                                    )})}
                                 </div>
 
                                 <button
@@ -761,6 +943,28 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     </button>
                                     <button
                                         onClick={() => {
+                                            const hasMissingFields = formData.tanks.some(tank => !tank.tank_type || !tank.quantity || !tank.price);
+                                            if (hasMissingFields) {
+                                                showAlert('Incomplete Details', 'Please select a tank type and fill in quantity and price for each entry before adding.', 'warning');
+                                                return;
+                                            }
+
+                                            const hasExistingDuplicates = formData.tanks.some(tank => existingTankTypes.has(tank.tank_type));
+                                            if (hasExistingDuplicates) {
+                                                showAlert('Already in Inventory', 'One or more selected tank types already exist in inventory. Remove them to proceed.', 'error');
+                                                return;
+                                            }
+
+                                            const hasFormDuplicates = formData.tanks.some((tank, idx) =>
+                                                formData.tanks.some((otherTank, otherIdx) =>
+                                                    otherIdx !== idx && tank.tank_type === otherTank.tank_type
+                                                )
+                                            );
+                                            if (hasFormDuplicates) {
+                                                showAlert('Duplicate Selection', 'Each tank type can only be added once per submission.', 'error');
+                                                return;
+                                            }
+
                                             // Submit all tanks
                                             formData.tanks.forEach((tank) => {
                                                 const data = new FormData();
@@ -805,8 +1009,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 <h3 className="text-xl font-bold text-gray-800">Edit Tank</h3>
                                 <button
                                     onClick={() => {
-                                        setShowEditModal(false);
-                                        setSelectedProduct(null);
+                                        closeEditModal();
                                     }}
                                     className="text-gray-400 hover:text-gray-600"
                                 >
@@ -824,45 +1027,62 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                         disabled
                                     >
                                         <option value="">Select Tank Type</option>
-                                        <option value="Oxygen Tank">Oxygen Tank</option>
-                                        <option value="Argon Small">Argon Small</option>
-                                        <option value="Argon Big">Argon Big</option>
-                                        <option value="Nitro">Nitro</option>
-                                        <option value="Medical Oxygen Big">Medical Oxygen Big</option>
-                                        <option value="Medical Oxygen Medium">Medical Oxygen Medium</option>
-                                        <option value="Flask Type Standard">Flask Type Standard</option>
-                                        <option value="Flask Type Small">Flask Type Small</option>
-                                        <option value="Industrial Oxygen">Industrial Oxygen</option>
-                                        <option value="Acetylene">Acetylene</option>
+                                        {availableTankOptions.map((option) => (
+                                            <option key={option.name} value={option.name}>{option.name}</option>
+                                        ))}
                                     </select>
                                     <p className="text-xs text-gray-500 mt-1">Tank type cannot be changed after creation</p>
                                 </div>
 
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity *</label>
-                                    <input
-                                        type="number"
-                                        value={formData.tanks[0].quantity}
-                                        onChange={(e) => handleTankChange(0, 'quantity', e.target.value)}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="0"
-                                        min="0"
-                                        required
-                                    />
+                                    <div className="flex items-center justify-between">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            {`Quantity${isQuantityEditEnabled ? ' *' : ''}`}
+                                        </label>
+                                        <label className="flex items-center gap-2 text-sm text-gray-600">
+                                            <input
+                                                type="checkbox"
+                                                checked={isQuantityEditEnabled}
+                                                onChange={(e) => handleQuantityEditToggle(e.target.checked)}
+                                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <span>Edit quantity</span>
+                                        </label>
+                                    </div>
+                                    {!isQuantityEditEnabled ? (
+                                        <>
+                                            <p className="text-base font-medium text-gray-800">
+                                                {formData.tanks[0].quantity || (selectedProduct ? selectedProduct.quantity.toString() : '0')}
+                                            </p>
+                                            <p className="text-xs text-gray-500 mt-1">Enable editing to adjust the quantity.</p>
+                                        </>
+                                    ) : (
+                                        <input
+                                            type="number"
+                                            value={formData.tanks[0].quantity}
+                                            onChange={(e) => handleTankChange(0, 'quantity', e.target.value)}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="0"
+                                            min="0"
+                                            required
+                                        />
+                                    )}
                                 </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Quantity Change *</label>
-                                    <textarea
-                                        value={formData.quantity_change_reason}
-                                        onChange={(e) => setFormData({ ...formData, quantity_change_reason: e.target.value })}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                                        placeholder="Please explain why you are changing the quantity..."
-                                        rows={3}
-                                        required
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Required when quantity is changed</p>
-                                </div>
+                                {isQuantityEditEnabled && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Reason for Quantity Change *</label>
+                                        <textarea
+                                            value={formData.quantity_change_reason}
+                                            onChange={(e) => setFormData({ ...formData, quantity_change_reason: e.target.value })}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                            placeholder="Please explain why you are changing the quantity..."
+                                            rows={3}
+                                            required
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Required when quantity is changed</p>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-1">Price (₱)</label>
@@ -928,8 +1148,7 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                 <div className="flex gap-3 mt-6">
                                     <button
                                         onClick={() => {
-                                            setShowEditModal(false);
-                                            setSelectedProduct(null);
+                                            closeEditModal();
                                         }}
                                         className="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
                                     >
@@ -937,28 +1156,50 @@ export default function InventoryIndex({ products, maintenances, suppliers }: Pr
                                     </button>
                                     <button
                                         onClick={() => {
-                                            console.log('Updating tank with ID:', selectedProduct.id);
-                                            console.log('Form data:', formData);
+                                            if (!selectedProduct) {
+                                                return;
+                                            }
+
+                                            const originalQuantity = selectedProduct.quantity;
+                                            const editedQuantityValue = formData.tanks[0].quantity;
+                                            const parsedEditedQuantity = parseInt(editedQuantityValue, 10);
+                                            const quantityChanged = !Number.isNaN(parsedEditedQuantity) && parsedEditedQuantity !== originalQuantity;
+
+                                            if (isQuantityEditEnabled) {
+                                                if (!editedQuantityValue) {
+                                                    showAlert('Missing Quantity', 'Please enter the updated quantity before saving.', 'warning');
+                                                    return;
+                                                }
+
+                                                if (Number.isNaN(parsedEditedQuantity) || parsedEditedQuantity < 0) {
+                                                    showAlert('Invalid Quantity', 'Quantity must be a number greater than or equal to 0.', 'error');
+                                                    return;
+                                                }
+
+                                                if (quantityChanged && formData.quantity_change_reason.trim().length === 0) {
+                                                    showAlert('Reason Required', 'Please provide a reason for changing the quantity.', 'warning');
+                                                    return;
+                                                }
+                                            }
+
                                             const data = new FormData();
                                             data.append('_method', 'PUT');
                                             data.append('tank_type', formData.tanks[0].tank_type);
-                                            data.append('quantity', formData.tanks[0].quantity);
+                                            const quantityToSubmit = isQuantityEditEnabled ? editedQuantityValue : originalQuantity.toString();
+                                            data.append('quantity', quantityToSubmit);
                                             data.append('price', formData.tanks[0].price);
                                             data.append('last_refilled', formData.tanks[0].last_refilled);
                                             data.append('status', formData.tanks[0].status);
-                                            data.append('quantity_change_reason', formData.quantity_change_reason);
+                                            data.append('quantity_change_reason', isQuantityEditEnabled ? formData.quantity_change_reason : '');
                                             if (formData.tanks[0].image) {
                                                 data.append('image', formData.tanks[0].image);
-                                                console.log('Image file to upload:', formData.tanks[0].image);
                                             }
                                             router.post(`/inventory/${selectedProduct.id}`, data, {
                                                 onSuccess: () => {
                                                     router.reload({ only: ['products'] });
-                                                    console.log('Update successful');
                                                     closeEditModal();
                                                 },
                                                 onError: (errors) => {
-                                                    console.error('Update errors:', errors);
                                                     showAlert('Error', 'Error updating tank: ' + JSON.stringify(errors), 'error');
                                                 }
                                             });

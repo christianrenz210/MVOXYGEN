@@ -190,7 +190,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                 )}
                 
                 {/* Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeInUp">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight">Customer Management</h1>
                         <p className="text-muted-foreground">
@@ -203,7 +203,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                 {/* Stats Cards */}
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {/* Total Customers Card */}
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 transition-all hover:shadow-xl">
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-indigo-500 transition-all hover:shadow-xl animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Total Customers</p>
@@ -219,7 +219,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                     </div>
 
                     {/* Active Customers Card */}
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 transition-all hover:shadow-xl">
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 transition-all hover:shadow-xl animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Active Customers</p>
@@ -235,7 +235,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                     </div>
 
                     {/* Inactive Customers Card */}
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 transition-all hover:shadow-xl">
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 transition-all hover:shadow-xl animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Inactive Customers</p>
@@ -251,7 +251,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                     </div>
 
                     {/* Total Rentals Card */}
-                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transition-all hover:shadow-xl">
+                    <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 transition-all hover:shadow-xl animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-gray-500 text-sm">Total Rentals</p>
@@ -270,7 +270,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                 </div>
 
                 {/* Search and Filter */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
                     <CardHeader>
                         <div className="flex flex-col gap-4">
                             <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
@@ -516,7 +516,7 @@ export default function Customer({ customers: initialCustomers = [], recent_tran
                     </CardContent>
                 </Card>
 
-                <div className="mt-6">
+                <div className="mt-6 animate-fadeInUp" style={{ animationDelay: '0.6s' }}>
                     {/* Recent Transactions */}
                     <Card>
                         <CardHeader>

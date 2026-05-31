@@ -1,7 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock, Users, AlertCircle, CheckCircle, Phone, RotateCcw, ChevronLeft, ChevronRight, XCircle, Eye } from 'lucide-react';
+import { TrendingUp, DollarSign, Calendar, Package, RefreshCw, Clock, Users, AlertCircle, CheckCircle, Phone, RotateCcw, ChevronLeft, ChevronRight, XCircle, Eye, Truck } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import AlertModal from '@/components/alert-modal';
 import ConfirmModal from '@/components/confirm-modal';
@@ -9,7 +9,7 @@ import PromptModal from '@/components/prompt-modal';
 import { useState } from 'react';
 import { formatPhoneNumber } from '@/utils/phone';
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'rejected' | 'completed' | 'canceled';
+type StatusFilter = 'all' | 'pending' | 'approved' | 'in_transit' | 'delivered' | 'rejected' | 'completed' | 'canceled';
 
 interface Rental {
     id: number;
@@ -38,7 +38,7 @@ interface RentalRequest {
     purpose: string;
     contact_number: string;
     address: string;
-    status: 'pending' | 'approved' | 'rejected' | 'completed' | 'canceled';
+    status: 'pending' | 'approved' | 'in_transit' | 'delivered' | 'rejected' | 'completed' | 'canceled';
     admin_notes?: string;
     rejected_reason?: string;
     created_at: string;
@@ -253,10 +253,27 @@ export default function RentalIndex({ rentalRequests }: Props) {
         );
     };
 
+    const handleDispatch = (id: number) => {
+        showConfirm(
+            'Dispatch Delivery',
+            'Are you sure you want to dispatch this order for delivery?',
+            () => {
+                router.post(`/rentals/${id}/dispatch`, {}, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Order dispatched for delivery successfully!', 'success');
+                    }
+                });
+            },
+            'info'
+        );
+    };
+
     const getStatusBadge = (status: string) => {
         const badges = {
             pending: 'bg-yellow-100 text-yellow-800',
             approved: 'bg-green-100 text-green-800',
+            in_transit: 'bg-orange-100 text-orange-800',
+            delivered: 'bg-teal-100 text-teal-800',
             rejected: 'bg-red-100 text-red-800',
             completed: 'bg-blue-100 text-blue-800',
             canceled: 'bg-gray-100 text-gray-800'
@@ -279,7 +296,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                 </div>
 
                 {/* Header */}
-                <div className="mb-8">
+                <div className="mb-8 animate-fadeInUp">
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">{isRefillsPage ? 'Refill Requests' : 'Rental Requests'}</h1>
                     <p className="text-gray-600">{isRefillsPage ? 'Manage oxygen tank refill requests and approvals' : 'Manage oxygen tank rental requests and approvals'}</p>
                 </div>
@@ -289,9 +306,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* All Requests Card */}
                     <div 
                         onClick={() => handleFilterChange('all')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'all' ? 'border-blue-600 ring-2 ring-blue-200' : 'border-blue-500'
                         }`}
+                        style={{ animationDelay: '0.1s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -307,9 +325,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* Pending Card */}
                     <div 
                         onClick={() => handleFilterChange('pending')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'pending' ? 'border-yellow-600 ring-2 ring-yellow-200' : 'border-yellow-500'
                         }`}
+                        style={{ animationDelay: '0.2s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -327,9 +346,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* Approved Card */}
                     <div 
                         onClick={() => handleFilterChange('approved')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'approved' ? 'border-green-600 ring-2 ring-green-200' : 'border-green-500'
                         }`}
+                        style={{ animationDelay: '0.3s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -347,9 +367,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* Rejected Card */}
                     <div 
                         onClick={() => handleFilterChange('rejected')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'rejected' ? 'border-red-600 ring-2 ring-red-200' : 'border-red-500'
                         }`}
+                        style={{ animationDelay: '0.4s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -367,9 +388,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* Completed Card */}
                     <div 
                         onClick={() => handleFilterChange('completed')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'completed' ? 'border-purple-600 ring-2 ring-purple-200' : 'border-purple-500'
                         }`}
+                        style={{ animationDelay: '0.5s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -387,9 +409,10 @@ export default function RentalIndex({ rentalRequests }: Props) {
                     {/* Canceled Card */}
                     <div 
                         onClick={() => handleFilterChange('canceled')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl ${
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 cursor-pointer transition-all hover:shadow-xl animate-fadeInUp ${
                             activeFilter === 'canceled' ? 'border-gray-600 ring-2 ring-gray-200' : 'border-gray-500'
                         }`}
+                        style={{ animationDelay: '0.6s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -406,7 +429,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
                 </div>
 
                 {/* Rental Requests Table */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="bg-white rounded-xl shadow-lg p-6 animate-fadeInUp" style={{ animationDelay: '0.7s' }}>
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-gray-800">
                             {activeFilter === 'all' ? 'All Rental Requests' : 
@@ -555,6 +578,15 @@ export default function RentalIndex({ rentalRequests }: Props) {
                                                         </button>
                                                     </>
                                                 )}
+                                                {request.status === 'approved' && (
+                                                    <button
+                                                        onClick={() => handleDispatch(request.id)}
+                                                        className="text-orange-600 hover:text-orange-800"
+                                                        title="Dispatch Delivery"
+                                                    >
+                                                        <Truck className="w-4 h-4" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                         {activeFilter !== 'canceled' && activeFilter !== 'rejected' && (
@@ -639,7 +671,7 @@ export default function RentalIndex({ rentalRequests }: Props) {
 
                 {/* Deposit Information Table */}
                 {rentalRequests.some(r => r.rental) && (
-                    <div className="bg-white rounded-xl shadow-lg p-6 mt-6">
+                    <div className="bg-white rounded-xl shadow-lg p-6 mt-6 animate-fadeInUp" style={{ animationDelay: '0.8s' }}>
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-800">Deposit Information</h2>
                             <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2">

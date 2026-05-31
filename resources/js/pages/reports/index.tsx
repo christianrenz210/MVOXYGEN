@@ -552,13 +552,13 @@ export default function Reports({
                 </div>
 
                 {/* Header */}
-                <div className="mb-6">
+                <div className="mb-6 animate-fadeInUp">
                     <h1 className="text-3xl font-bold text-gray-800 mb-2">Rental Reports</h1>
                     <p className="text-gray-600">View rental statistics and sales performance</p>
                 </div>
 
                 {/* Period Filter */}
-                <div className="mb-6">
+                <div className="mb-6 animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
                     <div className="flex items-center justify-between">
                         <h2 className="text-2xl font-bold text-gray-800">Reports Dashboard</h2>
                         <div className="flex gap-2">
@@ -597,7 +597,7 @@ export default function Reports({
                 </div>
 
                 {/* Date Comparison Controls */}
-                <div className="bg-white rounded-lg shadow p-4 mb-6">
+                <div className="bg-white rounded-lg shadow p-4 mb-6 animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
                     <div className="flex items-center justify-between flex-wrap gap-4">
                         <div className="flex items-center gap-4">
                             <span className="text-sm font-medium text-gray-700">Compare:</span>
@@ -769,7 +769,7 @@ export default function Reports({
                 )}
 
                 {/* Stats Cards - Dynamic based on current chart */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8 animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
                     {currentChart === 0 && (
                         // Refills Statistics
                         <>
@@ -913,7 +913,7 @@ export default function Reports({
                 </div>
 
                 {/* Charts Section - Single Chart with Navigation */}
-                <div className="mb-8">
+                <div className="mb-8 animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
                     <div className="bg-white rounded-xl shadow-lg p-6 max-w-7xl mx-auto">
                         <div className="flex items-center justify-between mb-4">
                             <button

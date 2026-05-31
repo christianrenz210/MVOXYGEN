@@ -480,7 +480,12 @@ export default function UserDashboard({ breadcrumbs = [{ title: 'Dashboard', hre
                                                                     address: rental.rental_request.pickup_address
                                                                 } : undefined
                                                             }
-                                                            currentLocation={undefined}
+                                                            currentLocation={
+                                                                rental.rental_request?.status === 'in_transit' && rental.rental_request?.delivery_lat != null ? {
+                                                                    lat: Number(rental.rental_request.delivery_lat) - 0.005,
+                                                                    lng: Number(rental.rental_request.delivery_lng) - 0.005
+                                                                } : undefined
+                                                            }
                                                             isDelivered={rental.rental_request?.status === 'delivered'}
                                                             className="h-32 w-full"
                                                         />

@@ -17,6 +17,12 @@ class Tank extends Model
         'image',
     ];
 
+    protected $casts = [
+        'quantity' => 'integer',
+        'price' => 'decimal:2',
+        'active_rental_count' => 'integer',
+    ];
+
     protected static function boot()
     {
         parent::boot();

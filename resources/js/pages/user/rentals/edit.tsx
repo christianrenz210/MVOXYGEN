@@ -118,25 +118,25 @@ export default function RentalRequestEdit() {
         // Remove all non-digit characters
         const digitsOnly = number.replace(/\D/g, '');
         
-        // Check if it starts with 09 and has exactly 10 digits
+        // Check if it has exactly 10 digits
         if (digitsOnly.length === 0) {
             return { isValid: false, formatted: '', error: '' };
         }
         
         if (digitsOnly.length < 10) {
-            return { isValid: false, formatted: number, error: 'Contact number must be 10 digits' };
+            return { isValid: false, formatted: number, error: 'Contact number must be exactly 10 digits' };
         }
         
         if (digitsOnly.length > 10) {
             return { isValid: false, formatted: number, error: 'Contact number must be exactly 10 digits' };
         }
         
-        if (!digitsOnly.startsWith('09')) {
-            return { isValid: false, formatted: number, error: 'Contact number must start with 09' };
+        if (!digitsOnly.startsWith('9')) {
+            return { isValid: false, formatted: number, error: 'Contact number must start with 9' };
         }
         
-        // Format as 09XX-XXX-XXXX
-        const formatted = `${digitsOnly.slice(0, 4)}-${digitsOnly.slice(4, 7)}-${digitsOnly.slice(7)}`;
+        // Format as 9XX-XXX-XXXX
+        const formatted = `${digitsOnly.slice(0, 3)}-${digitsOnly.slice(3, 6)}-${digitsOnly.slice(6)}`;
         return { isValid: true, formatted };
     };
 
@@ -529,7 +529,7 @@ export default function RentalRequestEdit() {
                             {errors.contact_number && (
                                 <p className="mt-1 text-sm text-red-600">{errors.contact_number}</p>
                             )}
-                            <p className="mt-1 text-xs text-gray-500">Format: 09XX-XXX-XXXX (Philippines mobile number)</p>
+                            <p className="mt-1 text-xs text-gray-500">Format: 9XX-XXX-XXXX (without 0)</p>
                         </div>
 
                         {/* Delivery Address - Only show when delivery is selected */}

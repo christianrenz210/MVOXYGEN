@@ -149,7 +149,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
             
             <div className="space-y-8 px-6 py-6">
                 {/* Header */}
-                <div className="flex justify-between items-center">
+                <div className="flex justify-between items-center animate-fadeInUp">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">Activity Logs</h1>
                         <p className="text-gray-600">Monitor all system activities and user actions</p>
@@ -164,7 +164,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
                 </div>
 
                 {/* Filters */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
                     <CardHeader>
                         <CardTitle>Filters</CardTitle>
                     </CardHeader>
@@ -232,7 +232,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
 
                 {/* Stats Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <Card>
+                    <Card className="animate-fadeInUp" style={{ animationDelay: '0.2s' }}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Total Logs</CardTitle>
                             <Activity className="h-4 w-4 text-muted-foreground" />
@@ -243,7 +243,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
                         </CardContent>
                     </Card>
                     
-                    <Card>
+                    <Card className="animate-fadeInUp" style={{ animationDelay: '0.3s' }}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Today's Activity</CardTitle>
                             <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -256,7 +256,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
                         </CardContent>
                     </Card>
                     
-                    <Card>
+                    <Card className="animate-fadeInUp" style={{ animationDelay: '0.4s' }}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Unique Users</CardTitle>
                             <User className="h-4 w-4 text-muted-foreground" />
@@ -269,7 +269,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
                         </CardContent>
                     </Card>
                     
-                    <Card>
+                    <Card className="animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                             <CardTitle className="text-sm font-medium">Error Rate</CardTitle>
                             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
@@ -287,7 +287,7 @@ export default function ActivityLogs({ logs = [], success, pagination }: Activit
                 </div>
 
                 {/* Logs Table */}
-                <Card>
+                <Card className="animate-fadeInUp" style={{ animationDelay: '0.6s' }}>
                     <CardHeader>
                         <CardTitle>Activity Logs ({filteredLogs.length})</CardTitle>
                     </CardHeader>

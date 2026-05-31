@@ -167,6 +167,43 @@ class RentalController extends Controller
         return redirect()->back()->with('success', 'Rental request approved and customer notified.');
     }
 
+    public function dispatchDelivery(RentalRequest $rentalRequest)
+    {
+        // Only allow dispatching of approved requests
+        if ($rentalRequest->status !== 'approved') {
+            return redirect()->back()->with('error', 'Only approved requests can be dispatched.');
+        }
+
+        $rentalRequest->update(['status' => 'in_transit']);
+
+        // Log activity
+        $admin = auth()->user();
+        $requestType = $rentalRequest->request_type === 'refill' ? 'refill oxygen customer' : 'rental';
+        \App\Models\Activity::create([
+            'user_id' => $admin->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'rental_request_id' => $rentalRequest->id,
+            'action' => 'rental_dispatched',
+            'description' => "Admin {$admin->name} dispatched delivery for {$rentalRequest->tank_type} to {$rentalRequest->customer->name}",
+            'type' => 'info',
+        ]);
+
+        // Create notification for customer
+        $customerUser = \App\Models\User::where('name', $rentalRequest->customer->name)->first();
+        if ($customerUser) {
+            \App\Models\Notification::create([
+                'user_id' => $customerUser->id,
+                'type' => 'info',
+                'title' => 'Out for Delivery',
+                'message' => "Your {$requestType} for {$rentalRequest->tank_type} is out for delivery",
+                'link' => "/user/rentals/{$rentalRequest->id}/track",
+                'read' => false,
+            ]);
+        }
+
+        return redirect()->back()->with('success', 'Order has been dispatched for delivery.');
+    }
+
     public function reject(Request $request, RentalRequest $rentalRequest)
     {
         $request->validate([

@@ -83,7 +83,7 @@ export default function SuppliersIndex({ suppliers }: Props) {
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                     <Breadcrumbs breadcrumbs={breadcrumbs} />
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between animate-fadeInUp">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-900">Suppliers</h1>
                         <p className="mt-2 text-gray-600">Manage your oxygen tank suppliers and plants</p>
@@ -103,7 +103,7 @@ export default function SuppliersIndex({ suppliers }: Props) {
                 </div>
 
                 {suppliers.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow p-12 text-center">
+                    <div className="bg-white rounded-lg shadow p-12 text-center animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
                         <Building2 className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">No suppliers found</h3>
                         <p className="text-gray-500 mb-6">Get started by adding your first supplier</p>
@@ -116,8 +116,8 @@ export default function SuppliersIndex({ suppliers }: Props) {
                     </div>
                 ) : (
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                        {suppliers.map((supplier) => (
-                            <div key={supplier.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow">
+                        {suppliers.map((supplier, index) => (
+                            <div key={supplier.id} className="bg-white rounded-lg shadow hover:shadow-md transition-shadow animate-fadeInUp" style={{ animationDelay: `${0.1 + (index * 0.1)}s` }}>
                                 <div className="p-6">
                                     <div className="flex items-start justify-between mb-4">
                                         <div className="flex items-center gap-3">

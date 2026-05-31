@@ -12,9 +12,9 @@ Icon.Default.mergeOptions({
 });
 
 interface DeliveryTrackingMapProps {
-  deliveryLocation?: { lat: number; lng: number; address: string };
-  currentLocation?: { lat: number; lng: number };
-  pickupLocation?: { lat: number; lng: number; address: string };
+  deliveryLocation?: { lat: number | string | null; lng: number | string | null; address: string };
+  currentLocation?: { lat: number | string | null; lng: number | string | null };
+  pickupLocation?: { lat: number | string | null; lng: number | string | null; address: string };
   isDelivered?: boolean;
   className?: string;
 }
@@ -69,27 +69,27 @@ export default function DeliveryTrackingMap({
   });
 
   useEffect(() => {
-    if (deliveryLocation) {
-      setCenter([deliveryLocation.lat, deliveryLocation.lng]);
+    if (deliveryLocation && deliveryLocation.lat != null && deliveryLocation.lng != null) {
+      setCenter([Number(deliveryLocation.lat), Number(deliveryLocation.lng)]);
       setZoom(15);
-    } else if (currentLocation) {
-      setCenter([currentLocation.lat, currentLocation.lng]);
+    } else if (currentLocation && currentLocation.lat != null && currentLocation.lng != null) {
+      setCenter([Number(currentLocation.lat), Number(currentLocation.lng)]);
       setZoom(15);
     }
   }, [deliveryLocation, currentLocation]);
 
   const routeCoordinates: LatLngExpression[] = [];
   
-  if (pickupLocation) {
-    routeCoordinates.push([pickupLocation.lat, pickupLocation.lng]);
+  if (pickupLocation && pickupLocation.lat != null && pickupLocation.lng != null) {
+    routeCoordinates.push([Number(pickupLocation.lat), Number(pickupLocation.lng)]);
   }
   
-  if (currentLocation) {
-    routeCoordinates.push([currentLocation.lat, currentLocation.lng]);
+  if (currentLocation && currentLocation.lat != null && currentLocation.lng != null) {
+    routeCoordinates.push([Number(currentLocation.lat), Number(currentLocation.lng)]);
   }
   
-  if (deliveryLocation) {
-    routeCoordinates.push([deliveryLocation.lat, deliveryLocation.lng]);
+  if (deliveryLocation && deliveryLocation.lat != null && deliveryLocation.lng != null) {
+    routeCoordinates.push([Number(deliveryLocation.lat), Number(deliveryLocation.lng)]);
   }
 
   return (
@@ -108,9 +108,9 @@ export default function DeliveryTrackingMap({
         />
 
         {/* Pickup Location */}
-        {pickupLocation && (
+        {pickupLocation && pickupLocation.lat != null && pickupLocation.lng != null && (
           <Marker 
-            position={[pickupLocation.lat, pickupLocation.lng]} 
+            position={[Number(pickupLocation.lat), Number(pickupLocation.lng)]} 
             icon={pickupIcon}
           >
             <Popup>
@@ -124,9 +124,9 @@ export default function DeliveryTrackingMap({
         )}
 
         {/* Current Delivery Location */}
-        {currentLocation && !isDelivered && (
+        {currentLocation && currentLocation.lat != null && currentLocation.lng != null && !isDelivered && (
           <Marker 
-            position={[currentLocation.lat, currentLocation.lng]} 
+            position={[Number(currentLocation.lat), Number(currentLocation.lng)]} 
             icon={currentIcon}
           >
             <Popup>
@@ -140,9 +140,9 @@ export default function DeliveryTrackingMap({
         )}
 
         {/* Delivery Location */}
-        {deliveryLocation && (
+        {deliveryLocation && deliveryLocation.lat != null && deliveryLocation.lng != null && (
           <Marker 
-            position={[deliveryLocation.lat, deliveryLocation.lng]} 
+            position={[Number(deliveryLocation.lat), Number(deliveryLocation.lng)]} 
             icon={deliveryIcon}
           >
             <Popup>

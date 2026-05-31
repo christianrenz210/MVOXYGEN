@@ -1,7 +1,7 @@
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Users, Package, Calendar, Phone, CheckCircle, AlertCircle, Eye, Edit, Clock, RefreshCw, X, DollarSign } from 'lucide-react';
+import { Users, Package, Calendar, Phone, CheckCircle, AlertCircle, Eye, Edit, Clock, RefreshCw, X, DollarSign, Truck } from 'lucide-react';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -29,7 +29,7 @@ interface RentalRequest {
     purpose: string;
     contact_number: string;
     address: string;
-    status: 'pending' | 'approved' | 'rejected' | 'completed';
+    status: 'pending' | 'approved' | 'in_transit' | 'delivered' | 'rejected' | 'completed';
     admin_notes?: string;
     rejected_reason?: string;
     created_at: string;
@@ -201,10 +201,27 @@ export default function RefillsIndex({ rentalRequests }: Props) {
         setShowPromptModal(true);
     };
 
+    const handleDispatch = (id: number) => {
+        showConfirm(
+            'Dispatch Delivery',
+            'Are you sure you want to dispatch this refill for delivery?',
+            () => {
+                router.post(`/refills/${id}/dispatch`, {}, {
+                    onSuccess: () => {
+                        showAlert('Success', 'Refill order dispatched for delivery successfully!', 'success');
+                    }
+                });
+            },
+            'info'
+        );
+    };
+
     const getStatusBadge = (status: string) => {
         const badges = {
             pending: 'bg-yellow-100 text-yellow-800',
             approved: 'bg-green-100 text-green-800',
+            in_transit: 'bg-orange-100 text-orange-800',
+            delivered: 'bg-teal-100 text-teal-800',
             rejected: 'bg-red-100 text-red-800',
             completed: 'bg-blue-100 text-blue-800'
         };
@@ -226,7 +243,7 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                 </div>
 
                 {/* Header */}
-                <div className="mb-8 flex justify-between items-center">
+                <div className="mb-8 flex justify-between items-center animate-fadeInUp">
                     <div>
                         <h1 className="text-3xl font-bold text-gray-800 mb-2">Refill Requests</h1>
                         <p className="text-gray-600">Manage oxygen tank refill requests and approvals</p>
@@ -241,7 +258,8 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
                     <div 
                         onClick={() => handleTabChange('pending')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'pending' ? 'ring-2 ring-yellow-400' : ''}`}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-yellow-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 animate-fadeInUp ${activeTab === 'pending' ? 'ring-2 ring-yellow-400' : ''}`}
+                        style={{ animationDelay: '0.1s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -256,7 +274,8 @@ export default function RefillsIndex({ rentalRequests }: Props) {
 
                     <div 
                         onClick={() => handleTabChange('approved')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'approved' ? 'ring-2 ring-green-400' : ''}`}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 animate-fadeInUp ${activeTab === 'approved' ? 'ring-2 ring-green-400' : ''}`}
+                        style={{ animationDelay: '0.2s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -271,7 +290,8 @@ export default function RefillsIndex({ rentalRequests }: Props) {
 
                     <div 
                         onClick={() => handleTabChange('rejected')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'rejected' ? 'ring-2 ring-red-400' : ''}`}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-red-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 animate-fadeInUp ${activeTab === 'rejected' ? 'ring-2 ring-red-400' : ''}`}
+                        style={{ animationDelay: '0.3s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -286,7 +306,8 @@ export default function RefillsIndex({ rentalRequests }: Props) {
 
                     <div 
                         onClick={() => handleTabChange('all')}
-                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 ${activeTab === 'all' ? 'ring-2 ring-blue-400' : ''}`}
+                        className={`bg-white rounded-xl shadow-lg p-6 border-l-4 border-blue-500 cursor-pointer transition-all hover:shadow-xl hover:scale-105 animate-fadeInUp ${activeTab === 'all' ? 'ring-2 ring-blue-400' : ''}`}
+                        style={{ animationDelay: '0.4s' }}
                     >
                         <div className="flex items-center justify-between">
                             <div>
@@ -301,7 +322,7 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                 </div>
 
                 {/* Refill Requests Table */}
-                <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="bg-white rounded-xl shadow-lg p-6 animate-fadeInUp" style={{ animationDelay: '0.5s' }}>
                     <div className="flex items-center justify-between mb-4">
                         <h2 className="text-xl font-bold text-gray-800">
                             {activeTab === 'all' ? 'All Refill Requests' : 
@@ -384,6 +405,15 @@ export default function RefillsIndex({ rentalRequests }: Props) {
                                                             <AlertCircle className="w-4 h-4" />
                                                         </button>
                                                     </>
+                                                )}
+                                                {request.status === 'approved' && (
+                                                    <button
+                                                        onClick={() => handleDispatch(request.id)}
+                                                        className="text-orange-600 hover:text-orange-800"
+                                                        title="Dispatch Delivery"
+                                                    >
+                                                        <Truck className="w-4 h-4" />
+                                                    </button>
                                                 )}
                                             </div>
                                         </td>

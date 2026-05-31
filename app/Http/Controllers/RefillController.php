@@ -185,6 +185,35 @@ class RefillController extends Controller
     }
 
     /**
+     * Dispatch the specified refill request for delivery.
+     */
+    public function dispatchDelivery(RentalRequest $rentalRequest)
+    {
+        if ($rentalRequest->request_type !== 'refill') {
+            abort(404);
+        }
+
+        if ($rentalRequest->status !== 'approved') {
+            return redirect()->back()->with('error', 'Only approved requests can be dispatched.');
+        }
+
+        $rentalRequest->update(['status' => 'in_transit']);
+
+        // Log activity
+        $admin = auth()->user();
+        Activity::create([
+            'user_id' => $admin->id,
+            'customer_id' => $rentalRequest->customer_id,
+            'rental_request_id' => $rentalRequest->id,
+            'action' => 'refill_dispatched',
+            'description' => "Admin {$admin->name} dispatched refill delivery for {$rentalRequest->tank_type} to {$rentalRequest->customer->name}",
+            'type' => 'info',
+        ]);
+
+        return redirect()->back()->with('success', 'Refill order has been dispatched for delivery.');
+    }
+
+    /**
      * Reject the specified refill request.
      */
     public function reject(RentalRequest $rentalRequest, Request $request)

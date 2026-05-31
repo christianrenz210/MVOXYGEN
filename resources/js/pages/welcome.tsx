@@ -3,7 +3,7 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { useState, useEffect, useRef } from 'react';
 
 export default function Welcome() {
-    const { auth, url } = usePage<SharedData>().props;
+    const { url, props: { auth } } = usePage<SharedData>();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [footerVisible, setFooterVisible] = useState(false);
     const footerRef = useRef<HTMLElement | null>(null);
@@ -45,7 +45,7 @@ export default function Welcome() {
                 <link rel="preconnect" href="https://fonts.bunny.net" />
                 <link href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600" rel="stylesheet" />
             </Head>
-            <div className="flex flex-col items-center bg-[#FDFDFC] pt-20 px-6 text-[#1b1b18] lg:px-8 dark:bg-[#0a0a0a]">
+            <div className="flex flex-col items-center bg-[#FDFDFC] pt-20 pb-20 px-6 text-[#1b1b18] lg:px-8 dark:bg-[#0a0a0a]">
                 <header className="fixed top-0 left-0 right-0 z-50 w-full px-6 pt-4 pb-3 text-sm bg-white/95 backdrop-blur-sm border-b border-gray-200 dark:bg-[#0a0a0a]/95 dark:border-gray-800 transition-all duration-300 ease-in-out">
                     <nav className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -262,23 +262,97 @@ export default function Welcome() {
             <footer
                 ref={footerRef}
                 data-footer="true"
-                className={`bg-gray-900 text-white py-8 w-full transition-all duration-700 ${footerVisible ? 'animate-fadeInUp' : 'opacity-0'
+                className={`bg-gray-900 text-white py-12 w-full transition-all duration-700 ${footerVisible ? 'animate-fadeInUp' : 'opacity-0'
                     }`}
             >
                 <div className="px-6 lg:px-8">
                     <div className="max-w-7xl mx-auto">
-                        <div className="flex items-center gap-3 mb-4">
-                            <img
-                                src="images/mv-oxygen-logo.png"
-                                alt="MV Oxygen Trading Logo"
-                                className="w-8 h-8"
-                            />
-                            <span className="text-lg font-semibold">MV Oxygen Trading</span>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+                            {/* Company Info */}
+                            <div>
+                                <div className="flex items-center gap-3 mb-4">
+                                    <img
+                                        src="images/mv-oxygen-logo.png"
+                                        alt="MV Oxygen Trading Logo"
+                                        className="w-8 h-8"
+                                    />
+                                    <span className="text-lg font-semibold">MV Oxygen Trading</span>
+                                </div>
+                                <p className="text-gray-400 text-sm mb-4">
+                                    Oxygen Tank Rental & Refill Management System
+                                </p>
+                                <div className="flex items-center gap-4 mt-6">
+                                    <a href="https://www.facebook.com/mvoxygentrading" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-[#1877F2] transition-colors" aria-label="Facebook">
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                            <path fillRule="evenodd" d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" clipRule="evenodd" />
+                                        </svg>
+                                    </a>
+                                    <a href="mailto:michael121617@yahoo.com" className="text-gray-400 hover:text-white transition-colors" aria-label="Email">
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                    </a>
+                                </div>
+                            </div>
+
+                            {/* Quick Links */}
+                            <div>
+                                <h4 className="text-lg font-semibold mb-4 text-gray-200">Quick Links</h4>
+                                <ul className="space-y-2 text-sm text-gray-400">
+                                    <li>
+                                        <a href="/" className="hover:text-white transition-colors">Home</a>
+                                    </li>
+                                    <li>
+                                        <Link href="/faq" className="hover:text-white transition-colors">FAQ</Link>
+                                    </li>
+                                    <li>
+                                        <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
+                                    </li>
+                                    {!auth.user ? (
+                                        <>
+                                            <li>
+                                                <Link href={route('login')} className="hover:text-white transition-colors">Log in</Link>
+                                            </li>
+                                            <li>
+                                                <Link href={route('register')} className="hover:text-white transition-colors">Register</Link>
+                                            </li>
+                                        </>
+                                    ) : (
+                                        <li>
+                                            <Link href={route('dashboard')} className="hover:text-white transition-colors">Dashboard</Link>
+                                        </li>
+                                    )}
+                                </ul>
+                            </div>
+
+                            {/* Contact Info */}
+                            <div>
+                                <h4 className="text-lg font-semibold mb-4 text-gray-200">Contact Info</h4>
+                                <ul className="space-y-3 text-sm text-gray-400">
+                                    <li className="flex items-start gap-3">
+                                        <svg className="w-5 h-5 mt-0.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        <span>0075 Rizal St. Conception General Tinio, Nueva Ecija</span>
+                                    </li>
+                                    <li className="flex items-center gap-3">
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                        </svg>
+                                        <span>michael121617@yahoo.com</span>
+                                    </li>
+                                    <li className="flex items-center gap-3">
+                                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                        </svg>
+                                        <span>0977-330-5640</span>
+                                    </li>
+                                </ul>
+                            </div>
                         </div>
-                        <p className="text-gray-400 text-sm">
-                            Oxygen Tank Rental & Refill Management System
-                        </p>
-                        <div className="mt-4 pt-4 border-t border-gray-700 text-gray-500 text-sm">
+
+                        <div className="pt-8 border-t border-gray-800 text-center text-gray-500 text-sm">
                             © 2026 MV Oxygen Trading. All rights reserved.
                         </div>
                     </div>
