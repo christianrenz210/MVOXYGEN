@@ -3,7 +3,7 @@ services:
     name: mv-oxygen
     runtime: node
     buildCommand: ./render-build.sh
-    startCommand: node server.js
+    startCommand: ./render-start.sh
     envVars:
       - key: APP_NAME
         value: MV_OXYGEN
